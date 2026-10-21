@@ -21,6 +21,7 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sanitizeSearch(sp.q) : "";
   const category = typeof sp.category === "string" ? sp.category : "";
+  const saved = typeof sp.saved === "string" ? sp.saved : "";
   const status = STATUSES.includes(sp.status as ReportStatus) || sp.status === "all" ? String(sp.status) : "open";
 
   const supabase = await createClient();
@@ -38,8 +39,13 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
 
   return (
     <div className="container-page py-10">
-      <h1 className="text-3xl font-extrabold">Lost reports</h1>
-      <p className="text-sm text-muted">Filed by attendees. Match them against the inventory and reach out.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold">Lost reports</h1>
+          <p className="text-sm text-muted">Filed at the Info Desk. Match them against the inventory and contact the attendee.</p>
+        </div>
+        <Link href="/team/reports/new" className="btn-primary">+ File lost report</Link>
+      </div>
       <ItemFilters
         action="/team/reports"
         q={q}
@@ -56,14 +62,24 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
 
       <div className="mt-6 space-y-4">
         {reports?.map((r) => {
+          const justSaved = r.id === saved;
           const suggestions = r.status === "open" ? topMatches(r, items, 3, 20) : [];
           return (
-            <article key={r.id} id={r.id} className="card scroll-mt-32 p-5">
+            <article key={r.id} id={r.id} className={`card scroll-mt-32 p-5 ${justSaved ? "ring-2 ring-emerald-400" : ""}`}>
+              {justSaved && (
+                <p className="mb-3 rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                  Saved. Give the attendee reference <strong className="font-mono">{reportRef(r.ref_no)}</strong>.
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-xs text-muted">{reportRef(r.ref_no)}</span>
                 <ReportStatusBadge status={r.status} />
                 <CategoryTag value={r.category} />
-                <span className="ml-auto text-xs text-muted">{formatDateTime(r.created_at)}</span>
+                <span className="ml-auto text-xs text-muted">
+                  {formatDateTime(r.created_at)}
+                  {r.filed_by ? <> · filed by {r.filed_by}</> : <> · reported online</>}
+                </span>
+                <Link href={`/team/reports/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
               </div>
               <div className="mt-3 grid gap-5 md:grid-cols-[1.4fr_1fr]">
                 <div>

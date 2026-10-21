@@ -37,7 +37,10 @@ export default async function TeamDashboard() {
           <p className="eyebrow">Info Desk</p>
           <h1 className="mt-1 text-3xl font-extrabold">Dashboard</h1>
         </div>
-        <Link href="/team/items/new" className="btn-primary">📷 Log found item</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/team/reports/new" className="btn-secondary">+ File lost report</Link>
+          <Link href="/team/items/new" className="btn-primary">📷 Log found item</Link>
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

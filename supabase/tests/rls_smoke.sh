@@ -35,13 +35,12 @@ check "anon cannot see photo while in custody" "0" "$(P -c "begin; set local rol
 check "team sees photo while in custody" "1" "$(P -c "begin; $T select count(*) from storage.objects; commit;")"
 check "anon cannot read private details" "permission denied" "$(P -c "begin; set local role anon; select * from found_item_private; commit;")"
 check "user cannot read private details" "0" "$(P -c "begin; $U select count(*) from found_item_private; commit;")"
-check "user report insert forces status=open" "open" "$(P -c "begin; $U insert into lost_reports(title,description,category,contact_name,status) values ('My airpods','white airpods pro, engraved','audio','Sam','returned') returning status; commit;")"
-check "user cannot self-match" "Only the Info Desk team" "$(P -c "begin; $U update lost_reports set matched_item_id=$ITEM; commit;")"
-check "user can close own report" "closed" "$(P -c "begin; $U update lost_reports set status='closed' returning status; rollback;")"
-check "user can reopen own closed report" "open" "$(P -c "begin; $U update lost_reports set status='closed'; update lost_reports set status='open' returning status; rollback;")"
-check "user cannot mark own report returned" "Only the Info Desk team" "$(P -c "begin; $U update lost_reports set status='returned'; commit;")"
-check "other user cannot see report" "0" "$(P -c "begin; $O select count(*) from lost_reports; commit;")"
-check "other user cannot delete report" "DELETE 0" "$(P -c "begin; $O delete from lost_reports; commit;" ; P -c "select 'DELETE ' || (1 - count(*)) from lost_reports;")"
+check "user cannot file a report" "row-level security" "$(P -c "begin; $U insert into lost_reports(title,description,category,contact_name) values ('x','x','other','x'); commit;")"
+check "team files report, stamped with filer" "open|team@x.org|" "$(P -c "begin; $T insert into lost_reports(title,description,category,contact_name,contact_telegram,filed_by) values ('My airpods','white airpods pro, engraved','audio','Sam','sam','spoofed@x.org') returning status, filed_by, coalesce(user_id::text,''); commit;")"
+check "user cannot see reports" "0" "$(P -c "begin; $U select count(*) from lost_reports; commit;")"
+check "user cannot edit reports" "0" "$(P -c "begin; $U with u as (update lost_reports set contact_phone='1' returning 1) select count(*) from u; commit;")"
+check "user cannot delete reports" "1" "$(P -c "begin; $O delete from lost_reports; commit;" >/dev/null; P -c "select count(*) from lost_reports;")"
+check "team can edit report" "+911" "$(P -c "begin; $T update lost_reports set contact_phone='+911' returning contact_phone; rollback;")"
 check "team sees all reports" "1" "$(P -c "begin; $T select count(*) from lost_reports; commit;")"
 check "team can match report" "matched" "$(P -c "begin; $T update lost_reports set status='matched', matched_item_id=$ITEM, team_note='Come to desk' returning status; commit;")"
 check "user cannot call claim_item" "Only the Info Desk team" "$(P -c "begin; $U select claim_item($ITEM,'x','x','x'); commit;")"
@@ -56,6 +55,9 @@ check "team cannot add members" "permission denied" "$(P -c "begin; $T insert in
 check "team cannot remove members" "permission denied" "$(P -c "begin; $T delete from team_members; commit;")"
 check "user sees no roster" "0" "$(P -c "begin; $U select count(*) from team_members; commit;")"
 check "user cannot upload photos" "row-level security" "$(P -c "begin; $U insert into storage.objects(bucket_id,name) values ('item-photos','evil.jpg'); commit;")"
+
+P -c "insert into lost_reports(user_id,title,description,category,contact_name) values ('33333333-3333-3333-3333-333333333333','old online report','x','other','Uma');" >/dev/null
+check "deleting reporter account keeps their report" "old online report|" "$(P -c "delete from auth.users where id='33333333-3333-3333-3333-333333333333'; select title, coalesce(user_id::text,'') from lost_reports where title='old online report';")"
 
 echo "---- $pass passed, $fail failed"
 [[ $fail -eq 0 ]]

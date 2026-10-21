@@ -5,31 +5,33 @@ It's built with Next.js and runs on Vercel, with Supabase for Postgres, Auth (Go
 
 ## What it does
 
-**Attendees** (no sign-in needed to browse)
+**Attendees** (no account, no sign-in)
 - Browse everything handed in at the Info Desk. While an item is unclaimed the public sees only a **generic label** ("Water bottle, 1 L", "Backpack"), with no photo, description or location, so the real owner has to describe it
 - Each item has a reference number (`F-0042`) to give at the desk when claiming it
-- Sign in with Google to report a lost item: description, where/when it was lost, and contact details
-- **My reports** shows the status, plus a "We may have found it!" card once the team links a match
+- To report a loss, visit any Info Desk. A team member files it and contacts them if it turns up
 
 **Info Desk team** (Google accounts added on the Team page)
+- **File a lost report** for an attendee at the desk, and edit it later. Each report records which team member filed it
 - Log a found item from a phone. The photo is taken in the browser, compressed, and uploaded
 - Write the generic public label, plus the full team-only details: title, colour, description, photo, location, who handed it in, **identifying details** to check claims against, internal notes
-- Dashboard of **possible matches** between open lost reports and items in custody
-- Link a report to an item, which notifies the reporter on their My reports page
+- Dashboard of **possible matches** between open lost reports and items in custody; link a report to an item, then contact the attendee
 - **Hand over** an item: record who collected it, their contact and how they proved ownership. It's done in one step and also closes the linked report. A hand-over can be undone
 
 **Superadmin** (the email in `SUPERADMIN`)
 - Everything the team can do, plus adding and removing team members on **Team desk → Team**. Changes apply immediately
 
+**Anyone else who signs in** sees **Authorisation denied**: they're signed out and their Supabase Auth user is deleted.
+Lost reports they filed online before this rule are kept.
+
 ### Privacy model (enforced in Postgres RLS)
 
-| Data | Public | Signed-in user | Team |
-| --- | --- | --- | --- |
-| Generic label, category, date found, status | ✅ | ✅ | ✅ |
-| Title, description, colour, photo | only once returned | only once returned | ✅ |
-| Location, finder, claimant, identifying details | ❌ | ❌ | ✅ |
-| Lost reports (incl. contact info) | ❌ | own only | ✅ |
-| Team roster | ❌ | own row only | ✅ (read-only; superadmin edits via the server) |
+| Data | Public | Team |
+| --- | --- | --- |
+| Generic label, category, date found, status | ✅ | ✅ |
+| Title, description, colour, photo | only once returned | ✅ |
+| Location, finder, claimant, identifying details | ❌ | ✅ |
+| Lost reports (incl. attendee contact info) | ❌ | ✅ |
+| Team roster | ❌ | ✅ (read-only; superadmin edits via the server) |
 
 A team member must be in `team_members` **and** have signed in with Google. Signing in another way
 with the same email is not enough. The tests in `supabase/tests/rls_smoke.sh` check all of the above.
@@ -106,7 +108,7 @@ npx supabase db reset && bash supabase/tests/rls_smoke.sh
 ## Project layout
 
 ```
-src/app/                 public pages: home, /items, /report, /my-reports, /login
+src/app/                 public pages: home, /items, /login (team), /denied
 src/app/team/            team desk (dashboard, inventory, lost reports, team) + server actions
 src/lib/                 Supabase clients, auth/team helpers, validation, matching heuristic
 supabase/migrations/     schema, RLS policies, storage bucket, claim functions

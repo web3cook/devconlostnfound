@@ -7,7 +7,7 @@ import { requireSuperadmin, requireTeam } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EMAIL_RE, isSuperadminEmail } from "@/lib/team";
 import { PHOTO_BUCKET } from "@/lib/photos";
-import { claimSchema, firstError, formToObject, foundItemSchema } from "@/lib/validation";
+import { claimSchema, firstError, formToObject, foundItemSchema, lostReportSchema } from "@/lib/validation";
 import type { ActionState } from "@/lib/types";
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -103,6 +103,30 @@ export async function unclaimItem(fd: FormData) {
   const supabase = await createClient();
   await supabase.rpc("unclaim_item", { p_item_id: id });
   revalidateAll(id);
+}
+
+/** File a new lost report (attendee at the desk) or save edits to one. */
+export async function saveLostReport(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  await requireTeam();
+  const id = String(fd.get("id") ?? "");
+  const parsed = lostReportSchema.safeParse(formToObject(fd));
+  if (!parsed.success) return { error: firstError(parsed.error) };
+
+  const supabase = await createClient();
+  let reportId = id;
+  if (id) {
+    if (!UUID.test(id)) return { error: "Invalid report" };
+    const { error } = await supabase.from("lost_reports").update(parsed.data).eq("id", id);
+    if (error) return { error: `Couldn't save: ${error.message}` };
+  } else {
+    // filed_by is stamped by the database from the signed-in team member.
+    const { data, error } = await supabase.from("lost_reports").insert(parsed.data).select("id, ref_no").single();
+    if (error || !data) return { error: `Couldn't save: ${error?.message ?? "unknown error"}` };
+    reportId = data.id;
+  }
+
+  revalidateAll();
+  redirect(`/team/reports?status=all&saved=${reportId}#${reportId}`);
 }
 
 export async function linkReport(fd: FormData) {

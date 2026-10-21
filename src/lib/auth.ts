@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { ensureSuperadminMember, isSuperadminEmail } from "@/lib/team";
 
@@ -14,6 +15,24 @@ export type Viewer = {
   isSuperadmin: boolean;
 };
 
+/**
+ * Team membership for a verified identity. Mirrors private.is_team(): a row in
+ * team_members (or the SUPERADMIN env var) AND a Google sign-in.
+ */
+export async function resolveTeam(supabase: SupabaseClient, email: string, provider: unknown) {
+  const isGoogle = provider === "google" && Boolean(email);
+  const isSuperadmin = isGoogle && isSuperadminEmail(email);
+  if (isSuperadmin) {
+    await ensureSuperadminMember(email);
+    return { isTeam: true, isSuperadmin };
+  }
+  if (!isGoogle) return { isTeam: false, isSuperadmin };
+  // RLS returns this row to its owner (or to the team).
+  const { data: row, error } = await supabase.from("team_members").select("email").eq("email", email).maybeSingle();
+  if (error) throw new Error(`Could not check team membership: ${error.message}`);
+  return { isTeam: Boolean(row), isSuperadmin };
+}
+
 /** The signed-in user, from a verified token. */
 export const getViewer = cache(async (): Promise<Viewer | null> => {
   const supabase = await createClient();
@@ -26,18 +45,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   // Mirrors private.is_team() in the database: provider comes from
   // app_metadata, which users can't edit.
   const provider = (claims.app_metadata as Record<string, unknown> | undefined)?.provider;
-  const isGoogle = provider === "google" && Boolean(email);
-  const isSuperadmin = isGoogle && isSuperadminEmail(email);
-
-  let isTeam = false;
-  if (isSuperadmin) {
-    await ensureSuperadminMember(email);
-    isTeam = true;
-  } else if (isGoogle) {
-    // RLS only returns this row to its owner (or to the team).
-    const { data: row } = await supabase.from("team_members").select("email").eq("email", email).maybeSingle();
-    isTeam = Boolean(row);
-  }
+  const { isTeam, isSuperadmin } = await resolveTeam(supabase, email, provider);
 
   return {
     id: claims.sub,
@@ -57,7 +65,8 @@ export async function requireViewer(next: string) {
 
 export async function requireTeam(next = "/team") {
   const viewer = await requireViewer(next);
-  if (!viewer.isTeam) redirect("/team/not-authorized");
+  // Signed in but not on the team: /auth/denied signs them out and deletes the account.
+  if (!viewer.isTeam) redirect("/auth/denied");
   return viewer;
 }
 

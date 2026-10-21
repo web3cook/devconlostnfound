@@ -48,8 +48,6 @@ export async function Header() {
 
   const links = [
     { href: "/items", label: "Found items" },
-    { href: "/report", label: "Report lost item" },
-    ...(viewer ? [{ href: "/my-reports", label: "My reports" }] : []),
     ...(viewer?.isTeam ? [{ href: "/team", label: "Team desk" }] : []),
   ];
 
@@ -68,7 +66,7 @@ export async function Header() {
       </nav>
 
       <div className="flex items-center gap-2">
-        {viewer ? (
+        {viewer?.isTeam ? (
           <details className="relative">
             <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full p-1 pr-3 hover:bg-white/10">
               {viewer.avatarUrl ? (
@@ -83,11 +81,9 @@ export async function Header() {
             </summary>
             <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-line bg-white p-2 text-body shadow-xl">
               <p className="truncate px-3 pt-2 text-xs text-muted">{viewer.email}</p>
-              {viewer.isTeam && (
-                <p className="px-3 pb-2 text-xs font-semibold text-brand">
-                  Info Desk team{viewer.isSuperadmin ? " · superadmin" : ""}
-                </p>
-              )}
+              <p className="px-3 pb-2 text-xs font-semibold text-brand">
+                Info Desk team{viewer.isSuperadmin ? " · superadmin" : ""}
+              </p>
               <div className="my-1 border-t border-line md:hidden" />
               {links.map((l) => (
                 <Link key={l.href} href={l.href} className={`${menuItem} md:hidden`}>
@@ -115,7 +111,7 @@ export async function Header() {
               </div>
             </details>
             <Link href="/login" className="btn-primary btn-sm">
-              Sign in
+              Team login
             </Link>
           </>
         )}

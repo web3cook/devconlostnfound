@@ -9,8 +9,8 @@ const STEPS = [
   {
     n: "01",
     title: "Lost something?",
-    body: "Check the found items below first. Not there? Report it with a description, where you last had it, and how to reach you. We'll contact you if it turns up.",
-    cta: { href: "/report", label: "Report a lost item" },
+    body: `Check the found items first. Not there? Visit any Info Desk (e.g. the ${INFO_DESK.location}) and a team member will register it with your description, where you last had it, and how to reach you. We'll contact you if it turns up.`,
+    cta: { href: "/items", label: "Check found items" },
   },
   {
     n: "02",
@@ -70,9 +70,9 @@ export default async function Home() {
             <Link href="/items" className="btn-primary">
               Browse found items →
             </Link>
-            <Link href="/report" className="btn border border-white/25 text-white hover:bg-white/10">
+            <a href="#how-it-works" className="btn border border-white/25 text-white hover:bg-white/10">
               I lost something
-            </Link>
+            </a>
           </div>
           <dl className="mt-10 flex gap-8 text-sm">
             <div>
@@ -87,7 +87,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="container-page py-14">
+      <section id="how-it-works" className="container-page scroll-mt-28 py-14">
         <p className="eyebrow">How it works</p>
         <h2 className="mt-2 text-3xl font-extrabold">Three steps back to your stuff</h2>
         <div className="mt-8 grid gap-5 md:grid-cols-3">

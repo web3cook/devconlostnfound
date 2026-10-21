@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signPhotoUrls } from "@/lib/photos";
 import { sanitizeSearch } from "@/lib/format";
@@ -48,11 +47,9 @@ export default async function ItemsPage({ searchParams }: PageProps<"/items">) {
         <div className="card mt-8 p-10 text-center">
           <p className="text-lg font-semibold text-ink">No matching items</p>
           <p className="mt-1 text-sm text-muted">
-            It may not have been handed in yet. Report it and we&apos;ll reach out if it shows up.
+            It may not have been handed in yet. Visit any Info Desk and a team member will register your lost item.
+            We&apos;ll reach out if it shows up.
           </p>
-          <Link href="/report" className="btn-primary mt-5">
-            Report a lost item
-          </Link>
         </div>
       )}
     </div>

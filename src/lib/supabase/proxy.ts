@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveTeam } from "@/lib/auth";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -31,16 +32,25 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims);
 
-  // Optimistic redirect only; pages and RLS do the real authorization.
+  // Early redirects for UX; pages, server actions and RLS still enforce access.
   const { pathname, search } = request.nextUrl;
-  const needsAuth = ["/team", "/report", "/my-reports"].some(
+  const needsAuth = ["/team"].some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
+  let target: string | null = null;
   if (needsAuth && !signedIn) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = `?next=${encodeURIComponent(pathname + search)}`;
-    const redirect = NextResponse.redirect(url);
+    target = `/login?next=${encodeURIComponent(pathname + search)}`;
+  } else if (needsAuth) {
+    // Signed in but not on the team: /auth/denied signs them out and deletes the
+    // account. Checked here so it's a real redirect before any page streams.
+    const claims = data!.claims;
+    const email = String(claims.email ?? "").toLowerCase();
+    const { isTeam } = await resolveTeam(supabase, email, (claims.app_metadata as Record<string, unknown>)?.provider);
+    if (!isTeam) target = "/auth/denied";
+  }
+
+  if (target) {
+    const redirect = NextResponse.redirect(new URL(target, request.url));
     supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     for (const header of ["cache-control", "expires", "pragma"]) {
       const value = supabaseResponse.headers.get(header);

@@ -47,7 +47,10 @@ export type FoundItemPrivate = {
 export type LostReport = {
   id: string;
   ref_no: number;
-  user_id: string;
+  /** Legacy: account that reported it online, before reports moved to the desk. */
+  user_id: string | null;
+  /** Team member who filed it (set by the database). */
+  filed_by: string | null;
   title: string;
   description: string;
   category: string;
