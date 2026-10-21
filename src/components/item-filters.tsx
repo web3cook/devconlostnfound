@@ -6,6 +6,7 @@ export function ItemFilters({
   category,
   status,
   action,
+  placeholder = "Search: water bottle, backpack, laptop…",
   statusOptions = [
     { value: "in_custody", label: "At Info Desk" },
     { value: "claimed", label: "Returned" },
@@ -16,11 +17,12 @@ export function ItemFilters({
   category: string;
   status: string;
   action?: string;
+  placeholder?: string;
   statusOptions?: { value: string; label: string }[];
 }) {
   return (
     <form action={action} className="card mt-6 grid gap-3 p-4 sm:grid-cols-[1fr_auto_auto_auto]">
-      <input name="q" defaultValue={q} placeholder="Search: airpods, blue hoodie, XL room…" className="input" aria-label="Search" />
+      <input name="q" defaultValue={q} placeholder={placeholder} className="input" aria-label="Search" />
       <select name="category" defaultValue={category} className="input sm:w-52" aria-label="Category">
         <option value="">All categories</option>
         {CATEGORIES.map((c) => (

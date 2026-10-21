@@ -16,7 +16,7 @@ export default async function NotAuthorized() {
           ) : (
             "You need to sign in with a whitelisted Google account."
           )}{" "}
-          Ask the Lost &amp; Found lead to add your Google account.
+          Ask the superadmin to add your Google account on the Team page.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Link href="/items" className="btn-secondary">Browse found items</Link>

@@ -37,3 +37,8 @@ export type Category = (typeof CATEGORIES)[number]["value"];
 export function categoryMeta(value: string) {
   return CATEGORIES.find((c) => c.value === value) ?? CATEGORIES[CATEGORIES.length - 1];
 }
+
+/** What the public sees for an item: the team's generic label, else the category. */
+export function publicLabel(item: { public_label: string | null; category: string }) {
+  return item.public_label?.trim() || categoryMeta(item.category).label;
+}

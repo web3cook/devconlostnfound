@@ -3,27 +3,28 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { topMatches } from "@/lib/match";
 import { formatDateTime, itemRef, reportRef, timeAgo } from "@/lib/format";
-import type { FoundItem, LostReport } from "@/lib/types";
+import type { LostReport } from "@/lib/types";
+import { loadTeamItems, toMatchable } from "@/lib/team-items";
 import { CategoryTag } from "@/components/badges";
 
 export const metadata: Metadata = { title: "Team desk" };
 
 export default async function TeamDashboard() {
   const supabase = await createClient();
-  const [{ data: items }, { data: reports }, { count: claimed }, { count: matched }] = await Promise.all([
-    supabase.from("found_items").select("*").eq("status", "in_custody").order("found_at", { ascending: false }).returns<FoundItem[]>(),
+  const [items, { data: reports }, { count: claimed }, { count: matched }] = await Promise.all([
+    loadTeamItems(supabase, "in_custody"),
     supabase.from("lost_reports").select("*").eq("status", "open").order("created_at", { ascending: false }).returns<LostReport[]>(),
     supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "claimed"),
     supabase.from("lost_reports").select("*", { count: "exact", head: true }).eq("status", "matched"),
   ]);
 
   const suggestions = (reports ?? [])
-    .map((r) => ({ report: r, matches: topMatches(r, items ?? [], 2) }))
+    .map((r) => ({ report: r, matches: topMatches(r, items.map(toMatchable), 2) }))
     .filter((s) => s.matches.length)
     .sort((a, b) => b.matches[0].score - a.matches[0].score);
 
   const stats = [
-    { label: "In custody", value: items?.length ?? 0, href: "/team/items" },
+    { label: "In custody", value: items.length, href: "/team/items" },
     { label: "Open lost reports", value: reports?.length ?? 0, href: "/team/reports" },
     { label: "Awaiting pickup (matched)", value: matched ?? 0, href: "/team/reports?status=matched" },
     { label: "Returned", value: claimed ?? 0, href: "/team/items?status=claimed" },
@@ -66,7 +67,7 @@ export default async function TeamDashboard() {
                     <Link key={item.id} href={`/team/items/${item.id}#matches`} className="flex items-center justify-between gap-3 rounded-xl bg-lavender px-3 py-2 text-sm hover:ring-1 hover:ring-brand/40">
                       <span className="min-w-0 truncate">
                         <span className="font-mono text-xs text-muted">{itemRef(item.ref_no)}</span>{" "}
-                        <span className="font-medium text-ink">{item.title}</span>
+                        <span className="font-medium text-ink">{item.title ?? item.public_label}</span>
                       </span>
                       <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-brand">{score}%</span>
                     </Link>

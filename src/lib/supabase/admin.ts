@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
-/** Bypasses RLS. Server-only; used solely to sync TEAM_EMAILS into the DB. */
+/** Bypasses RLS. Server-only; used solely for superadmin roster changes. */
 export function createAdminClient() {
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!key) throw new Error("SUPABASE_SECRET_KEY is not set");

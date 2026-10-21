@@ -4,12 +4,13 @@ import { categoryMeta } from "@/lib/config";
 export function ItemPhoto({
   url,
   category,
-  hidden,
+  note,
   className = "",
 }: {
   url?: string;
   category: string;
-  hidden?: boolean;
+  /** Shown under the placeholder, e.g. why there's no photo. */
+  note?: string;
   className?: string;
 }) {
   if (url) {
@@ -25,7 +26,7 @@ export function ItemPhoto({
         <span className="text-5xl" aria-hidden>
           {categoryMeta(category).emoji}
         </span>
-        {hidden && <p className="mt-2 px-4 text-xs text-muted">Photo hidden — describe it at the Info Desk</p>}
+        {note && <p className="mt-2 px-4 text-xs text-muted">{note}</p>}
       </div>
     </div>
   );

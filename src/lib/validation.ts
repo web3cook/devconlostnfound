@@ -38,14 +38,14 @@ export const lostReportSchema = z
   });
 
 export const foundItemSchema = z.object({
+  public_label: optional(80),
+  category: z.enum(categoryValues),
+  found_at: isoOrNull,
   title: z.string().trim().min(2, "Give the item a short name").max(120),
   description: optional(2000),
-  category: z.enum(categoryValues),
   color: optional(60),
-  found_location: optional(200),
-  found_at: isoOrNull,
   photo_path: optional(300),
-  photo_public: z.string().optional().transform((v) => v === "on" || v === "true"),
+  found_location: optional(200),
   finder_name: optional(120),
   finder_contact: optional(200),
   verification_details: optional(2000),

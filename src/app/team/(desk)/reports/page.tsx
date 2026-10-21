@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { topMatches } from "@/lib/match";
 import { formatDateTime, itemRef, reportRef, sanitizeSearch } from "@/lib/format";
 import type { FoundItem, LostReport, ReportStatus } from "@/lib/types";
+import { publicLabel } from "@/lib/config";
+import { loadTeamItems, teamTitle, toMatchable } from "@/lib/team-items";
 import { CategoryTag, ReportStatusBadge } from "@/components/badges";
 import { ItemFilters } from "@/components/item-filters";
 import { linkReport, saveTeamNote, setReportStatus, unlinkReport } from "@/app/team/actions";
@@ -11,7 +13,9 @@ import { linkReport, saveTeamNote, setReportStatus, unlinkReport } from "@/app/t
 export const metadata: Metadata = { title: "Lost reports" };
 
 const STATUSES: ReportStatus[] = ["open", "matched", "returned", "closed"];
-type Row = LostReport & { matched_item: Pick<FoundItem, "id" | "ref_no" | "title"> | null };
+type Row = LostReport & {
+  matched_item: (Pick<FoundItem, "id" | "ref_no" | "public_label" | "category"> & { found_item_details: { title: string } | null }) | null;
+};
 
 export default async function TeamReports({ searchParams }: PageProps<"/team/reports">) {
   const sp = await searchParams;
@@ -22,17 +26,15 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
   const supabase = await createClient();
   let query = supabase
     .from("lost_reports")
-    .select("*, matched_item:found_items(id, ref_no, title)")
+    .select("*, matched_item:found_items(id, ref_no, public_label, category, found_item_details(title))")
     .order("created_at", { ascending: false })
     .limit(500);
   if (status !== "all") query = query.eq("status", status);
   if (category) query = query.eq("category", category);
   if (q) query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,lost_location.ilike.%${q}%,contact_name.ilike.%${q}%`);
 
-  const [{ data: reports }, { data: items }] = await Promise.all([
-    query.returns<Row[]>(),
-    supabase.from("found_items").select("*").eq("status", "in_custody").order("ref_no", { ascending: false }).returns<FoundItem[]>(),
-  ]);
+  const [{ data: reports }, teamItems] = await Promise.all([query.returns<Row[]>(), loadTeamItems(supabase, "in_custody")]);
+  const items = teamItems.map((i) => ({ ...toMatchable(i), label: teamTitle(i) }));
 
   return (
     <div className="container-page py-10">
@@ -54,7 +56,7 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
 
       <div className="mt-6 space-y-4">
         {reports?.map((r) => {
-          const suggestions = r.status === "open" ? topMatches(r, items ?? [], 3, 20) : [];
+          const suggestions = r.status === "open" ? topMatches(r, items, 3, 20) : [];
           return (
             <article key={r.id} id={r.id} className="card scroll-mt-32 p-5">
               <div className="flex flex-wrap items-center gap-2">
@@ -87,7 +89,7 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
                 <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand/20 p-3 text-sm">
                   <span>Matched to</span>
                   <Link href={`/team/items/${r.matched_item.id}`} className="font-semibold text-brand hover:underline">
-                    {itemRef(r.matched_item.ref_no)} · {r.matched_item.title}
+                    {itemRef(r.matched_item.ref_no)} · {r.matched_item.found_item_details?.title ?? publicLabel(r.matched_item)}
                   </Link>
                   {r.status === "matched" && (
                     <form action={unlinkReport} className="ml-auto">
@@ -104,7 +106,7 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
                   <div className="mt-2 flex flex-wrap gap-2">
                     {suggestions.map(({ item, score }) => (
                       <Link key={item.id} href={`/team/items/${item.id}#matches`} className="rounded-full bg-lavender px-3 py-1 text-sm hover:ring-1 hover:ring-brand/40">
-                        <span className="font-mono text-xs">{itemRef(item.ref_no)}</span> {item.title}{" "}
+                        <span className="font-mono text-xs">{itemRef(item.ref_no)}</span> {item.label}{" "}
                         <span className="font-bold text-brand">{score}%</span>
                       </Link>
                     ))}
@@ -113,13 +115,13 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
               )}
 
               <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4 lg:flex-row lg:items-end">
-                {r.status === "open" && (items?.length ?? 0) > 0 && (
+                {r.status === "open" && items.length > 0 && (
                   <form action={linkReport} className="flex flex-1 flex-col gap-2 sm:flex-row">
                     <input type="hidden" name="report_id" value={r.id} />
                     <select name="item_id" className="input sm:max-w-64" required defaultValue={suggestions[0]?.item.id ?? ""}>
                       <option value="" disabled>Link to item…</option>
-                      {items!.map((i) => (
-                        <option key={i.id} value={i.id}>{itemRef(i.ref_no)} · {i.title}</option>
+                      {items.map((i) => (
+                        <option key={i.id} value={i.id}>{itemRef(i.ref_no)} · {i.label}</option>
                       ))}
                     </select>
                     <input name="team_note" className="input sm:flex-1" placeholder="Message to reporter (optional)" maxLength={1000} />

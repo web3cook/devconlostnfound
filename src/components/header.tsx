@@ -83,7 +83,11 @@ export async function Header() {
             </summary>
             <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-line bg-white p-2 text-body shadow-xl">
               <p className="truncate px-3 pt-2 text-xs text-muted">{viewer.email}</p>
-              {viewer.isTeam && <p className="px-3 pb-2 text-xs font-semibold text-brand">Info Desk team</p>}
+              {viewer.isTeam && (
+                <p className="px-3 pb-2 text-xs font-semibold text-brand">
+                  Info Desk team{viewer.isSuperadmin ? " · superadmin" : ""}
+                </p>
+              )}
               <div className="my-1 border-t border-line md:hidden" />
               {links.map((l) => (
                 <Link key={l.href} href={l.href} className={`${menuItem} md:hidden`}>

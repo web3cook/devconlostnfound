@@ -4,15 +4,15 @@ import { requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { signPhotoUrls } from "@/lib/photos";
 import { formatDateTime, itemRef, reportRef } from "@/lib/format";
-import { INFO_DESK } from "@/lib/config";
-import type { FoundItem, LostReport } from "@/lib/types";
+import { INFO_DESK, publicLabel } from "@/lib/config";
+import type { FoundItemWithDetails, LostReport } from "@/lib/types";
 import { CategoryTag, ReportStatusBadge } from "@/components/badges";
 import { ItemPhoto } from "@/components/item-photo";
 import { closeLostReport, deleteLostReport, reopenLostReport } from "../report/actions";
 
 export const metadata: Metadata = { title: "My reports" };
 
-type Row = LostReport & { matched_item: FoundItem | null };
+type Row = LostReport & { matched_item: FoundItemWithDetails | null };
 
 export default async function MyReportsPage({ searchParams }: PageProps<"/my-reports">) {
   const viewer = await requireViewer("/my-reports");
@@ -20,11 +20,11 @@ export default async function MyReportsPage({ searchParams }: PageProps<"/my-rep
   const supabase = await createClient();
   const { data: reports } = await supabase
     .from("lost_reports")
-    .select("*, matched_item:found_items(*)")
+    .select("*, matched_item:found_items(*, found_item_details(*))")
     .eq("user_id", viewer.id)
     .order("created_at", { ascending: false })
     .returns<Row[]>();
-  const photos = await signPhotoUrls(supabase, (reports ?? []).map((r) => r.matched_item?.photo_path));
+  const photos = await signPhotoUrls(supabase, (reports ?? []).map((r) => r.matched_item?.found_item_details?.photo_path));
 
   return (
     <div className="container-page max-w-4xl py-12">
@@ -65,7 +65,7 @@ export default async function MyReportsPage({ searchParams }: PageProps<"/my-rep
                 <div className="mt-5 flex gap-4 rounded-2xl border border-brand/20 bg-lavender p-4">
                   <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl">
                     <ItemPhoto
-                      url={r.matched_item.photo_path ? photos[r.matched_item.photo_path] : undefined}
+                      url={photos[r.matched_item.found_item_details?.photo_path ?? ""]}
                       category={r.matched_item.category}
                     />
                   </div>
@@ -75,12 +75,12 @@ export default async function MyReportsPage({ searchParams }: PageProps<"/my-rep
                     </p>
                     <p>
                       <Link href={`/items/${r.matched_item.id}`} className="font-semibold text-brand hover:underline">
-                        {itemRef(r.matched_item.ref_no)} · {r.matched_item.title}
+                        {itemRef(r.matched_item.ref_no)} · {r.matched_item.found_item_details?.title ?? publicLabel(r.matched_item)}
                       </Link>
                     </p>
                     {r.status === "matched" && (
                       <p className="mt-1 text-muted">
-                        Come to the {INFO_DESK.location} with this reference to confirm and collect it.
+                        Come to the {INFO_DESK.location} with this reference. You&apos;ll be asked to describe the item to confirm it&apos;s yours.
                       </p>
                     )}
                   </div>

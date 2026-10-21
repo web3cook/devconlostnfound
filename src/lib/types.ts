@@ -1,24 +1,39 @@
 export type ItemStatus = "in_custody" | "claimed";
 export type ReportStatus = "open" | "matched" | "returned" | "closed";
 
+/** Public row. While in custody this is all anyone outside the team can see. */
 export type FoundItem = {
   id: string;
   ref_no: number;
-  title: string;
-  description: string | null;
+  public_label: string | null;
   category: string;
-  color: string | null;
-  found_location: string | null;
   found_at: string;
-  photo_path: string | null;
-  photo_public: boolean;
   status: ItemStatus;
   claimed_at: string | null;
   created_at: string;
 };
 
+/** Real description. Team always; public only once the item is claimed (RLS). */
+export type FoundItemDetails = {
+  item_id: string;
+  title: string;
+  description: string | null;
+  color: string | null;
+  photo_path: string | null;
+};
+
+/** Found item with every detail. Only fully populated for team sessions (RLS). */
+export type TeamItem = FoundItem & {
+  found_item_details: FoundItemDetails | null;
+  found_item_private: FoundItemPrivate | null;
+};
+
+/** A found item with whatever details the viewer is allowed to see. */
+export type FoundItemWithDetails = FoundItem & { found_item_details: FoundItemDetails | null };
+
 export type FoundItemPrivate = {
   item_id: string;
+  found_location: string | null;
   finder_name: string | null;
   finder_contact: string | null;
   verification_details: string | null;

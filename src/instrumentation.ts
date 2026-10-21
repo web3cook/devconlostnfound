@@ -1,7 +1,7 @@
 export async function register() {
-  // Apply TEAM_EMAILS changes as soon as a new deployment boots.
+  // Give the SUPERADMIN a team_members row as soon as a deployment boots.
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { syncTeamMembers } = await import("@/lib/team");
-    await syncTeamMembers({ force: true }).catch((e) => console.error("[team] startup sync failed:", e));
+    const { ensureAllSuperadmins } = await import("@/lib/team");
+    await ensureAllSuperadmins().catch((e) => console.error("[team] startup check failed:", e));
   }
 }

@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { signPhotoUrls } from "@/lib/photos";
 import { topReportsFor } from "@/lib/match";
 import { formatDateTime, itemRef, reportRef } from "@/lib/format";
-import type { FoundItem, FoundItemPrivate, LostReport } from "@/lib/types";
+import type { LostReport, TeamItem } from "@/lib/types";
+import { publicLabel } from "@/lib/config";
+import { TEAM_ITEM_SELECT, teamTitle, toMatchable } from "@/lib/team-items";
 import { CategoryTag, ItemStatusBadge, ReportStatusBadge } from "@/components/badges";
 import { ItemPhoto } from "@/components/item-photo";
 import { deleteFoundItem, linkReport, unclaimItem, unlinkReport } from "@/app/team/actions";
@@ -32,15 +34,16 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: item }, { data: details }, { data: linked }, { data: open }] = await Promise.all([
-    supabase.from("found_items").select("*").eq("id", id).maybeSingle<FoundItem>(),
-    supabase.from("found_item_private").select("*").eq("item_id", id).maybeSingle<FoundItemPrivate>(),
+  const [{ data: item }, { data: linked }, { data: open }] = await Promise.all([
+    supabase.from("found_items").select(TEAM_ITEM_SELECT).eq("id", id).maybeSingle<TeamItem>(),
     supabase.from("lost_reports").select("*").eq("matched_item_id", id).returns<LostReport[]>(),
     supabase.from("lost_reports").select("*").eq("status", "open").returns<LostReport[]>(),
   ]);
   if (!item) notFound();
-  const photos = await signPhotoUrls(supabase, [item.photo_path]);
-  const suggestions = topReportsFor(item, open ?? [], 5, 20);
+  const info = item.found_item_details;
+  const details = item.found_item_private;
+  const photos = await signPhotoUrls(supabase, [info?.photo_path]);
+  const suggestions = topReportsFor(toMatchable(item), open ?? [], 5, 20);
   const pending = (linked ?? []).filter((r) => r.status === "matched");
 
   return (
@@ -51,12 +54,18 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
       <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_1.2fr]">
         <div className="space-y-4">
           <div className="card aspect-[4/3] overflow-hidden">
-            <ItemPhoto url={item.photo_path ? photos[item.photo_path] : undefined} category={item.category} />
+            <ItemPhoto url={photos[info?.photo_path ?? ""]} category={item.category} />
           </div>
-          <p className="text-xs text-muted">
-            {item.photo_path ? (item.photo_public ? "Photo is public." : "Photo is hidden from the public.") : "No photo."}{" "}
-            <Link href={`/items/${item.id}`} className="font-semibold text-brand hover:underline">View public page</Link>
-          </p>
+          <div className="rounded-xl bg-lavender px-4 py-3 text-sm">
+            <span className="text-muted">Public listing: </span>
+            <strong className="text-ink">{publicLabel(item)}</strong>
+            <p className="mt-1 text-xs text-muted">
+              {item.status === "claimed"
+                ? "Returned, so the photo, title and description are now public. Location and claimant stay private."
+                : "Photo, title, description and location stay hidden until the item is returned."}{" "}
+              <Link href={`/items/${item.id}`} className="font-semibold text-brand hover:underline">View public page</Link>
+            </p>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -67,11 +76,11 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
               <CategoryTag value={item.category} />
               <Link href={`/team/items/${item.id}/edit`} className="btn-secondary btn-sm ml-auto">Edit</Link>
             </div>
-            <h1 className="mt-3 text-3xl font-extrabold">{item.title}</h1>
-            {item.description && <p className="mt-2 whitespace-pre-line">{item.description}</p>}
+            <h1 className="mt-3 text-3xl font-extrabold">{teamTitle(item)}</h1>
+            {info?.description && <p className="mt-2 whitespace-pre-line">{info.description}</p>}
             <dl className="mt-4 grid grid-cols-2 gap-4">
-              <Field label="Colour" value={item.color} />
-              <Field label="Found near" value={item.found_location} />
+              <Field label="Colour" value={info?.color} />
+              <Field label="Found near" value={details?.found_location} />
               <Field label="Found at" value={formatDateTime(item.found_at)} />
               <Field label="Logged" value={formatDateTime(item.created_at)} />
             </dl>

@@ -1,4 +1,15 @@
-import type { FoundItem, LostReport } from "@/lib/types";
+import type { LostReport } from "@/lib/types";
+
+/** Everything the matcher looks at. Built from team-visible data only. */
+export type MatchableItem = {
+  category: string;
+  found_at: string;
+  public_label: string | null;
+  title?: string | null;
+  description?: string | null;
+  color?: string | null;
+  found_location?: string | null;
+};
 
 const STOP = new Set(
   "a an the and or of in on at to for with my is it its this that was from near by black white grey gray silver one some".split(
@@ -21,11 +32,11 @@ function tokens(...parts: (string | null | undefined)[]) {
  * Rough 0–100 score of how likely a found item is the thing someone lost.
  * Only used to rank suggestions for the team; a human always confirms.
  */
-export function matchScore(item: FoundItem, report: LostReport) {
+export function matchScore(item: MatchableItem, report: LostReport) {
   let score = 0;
   if (item.category === report.category && item.category !== "other") score += 35;
 
-  const a = tokens(item.title, item.description);
+  const a = tokens(item.title, item.public_label, item.description);
   const b = tokens(report.title, report.description);
   let shared = 0;
   for (const t of a) if (b.has(t)) shared++;
@@ -50,7 +61,7 @@ export function matchScore(item: FoundItem, report: LostReport) {
   return Math.max(0, Math.min(100, score));
 }
 
-export function topMatches<T extends FoundItem>(report: LostReport, items: T[], limit = 3, min = 30) {
+export function topMatches<T extends MatchableItem>(report: LostReport, items: T[], limit = 3, min = 30) {
   return items
     .map((item) => ({ item, score: matchScore(item, report) }))
     .filter((m) => m.score >= min)
@@ -58,7 +69,7 @@ export function topMatches<T extends FoundItem>(report: LostReport, items: T[], 
     .slice(0, limit);
 }
 
-export function topReportsFor<T extends LostReport>(item: FoundItem, reports: T[], limit = 5, min = 30) {
+export function topReportsFor<T extends LostReport>(item: MatchableItem, reports: T[], limit = 5, min = 30) {
   return reports
     .map((report) => ({ report, score: matchScore(item, report) }))
     .filter((m) => m.score >= min)

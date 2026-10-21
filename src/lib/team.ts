@@ -1,71 +1,44 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** SUPERADMIN env var: one email (a comma-separated list also works). */
+export function superadminEmails(): string[] {
+  return (process.env.SUPERADMIN ?? "")
+    .split(/[\s,;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => EMAIL_RE.test(e));
+}
+
+export function isSuperadminEmail(email: string) {
+  return superadminEmails().includes(email.toLowerCase());
+}
+
+// email → performance.now() of the last successful check
+const ensuredAt = new Map<string, number>();
+const RECHECK_MS = 5 * 60_000;
 
 /**
- * Whitelisted Info Desk team, from TEAM_EMAILS (comma, space or newline
- * separated). Returns null when the variable is unset so we never wipe the
- * roster because of a missing env var.
+ * Make sure the superadmin has a team_members row, so RLS grants them every
+ * team ability. Re-checked every few minutes, in case the row was deleted.
  */
-export function teamEmailsFromEnv(): string[] | null {
-  const raw = process.env.TEAM_EMAILS;
-  if (raw === undefined) return null;
-  return [...new Set(raw.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => EMAIL.test(e)))];
-}
-
-export function isTeamEmail(email: string) {
-  return teamEmailsFromEnv()?.includes(email.toLowerCase()) ?? false;
-}
-
-let lastSync = -Infinity;
-let inflight: Promise<void> | null = null;
-
-/**
- * Mirror TEAM_EMAILS into public.team_members, which RLS reads. Throttled per
- * server instance; pass force to sync regardless (server start, sign-in).
- */
-export function syncTeamMembers({ force = false } = {}): Promise<void> {
-  if (!force && performance.now() - lastSync < 30_000) return Promise.resolve();
-  inflight ??= doSync().finally(() => {
-    inflight = null;
-  });
-  return inflight;
-}
-
-async function doSync() {
-  const desired = teamEmailsFromEnv();
-  if (desired === null) {
-    console.warn("[team] TEAM_EMAILS is not set; leaving team_members unchanged");
-    return;
-  }
+export async function ensureSuperadminMember(email: string) {
+  email = email.toLowerCase();
+  if (!isSuperadminEmail(email)) return;
+  const last = ensuredAt.get(email);
+  if (last !== undefined && performance.now() - last < RECHECK_MS) return;
   if (!process.env.SUPABASE_SECRET_KEY) {
-    console.warn("[team] SUPABASE_SECRET_KEY is not set; cannot sync team_members");
+    console.warn("[team] SUPABASE_SECRET_KEY is not set; cannot register the superadmin");
     return;
   }
+  const { error } = await createAdminClient()
+    .from("team_members")
+    .upsert({ email, added_by: "SUPERADMIN env" }, { onConflict: "email", ignoreDuplicates: true });
+  if (error) return console.error("[team] could not register superadmin:", error.message);
+  ensuredAt.set(email, performance.now());
+}
 
-  const db = createAdminClient();
-  const { data, error } = await db.from("team_members").select("email");
-  if (error) {
-    console.error("[team] could not read team_members:", error.message);
-    return;
-  }
-
-  const current = new Set(data.map((r) => r.email as string));
-  const want = new Set(desired);
-  const toAdd = desired.filter((e) => !current.has(e));
-  const toRemove = [...current].filter((e) => !want.has(e));
-
-  if (toAdd.length) {
-    const { error } = await db.from("team_members").upsert(toAdd.map((email) => ({ email })));
-    if (error) return console.error("[team] add failed:", error.message);
-  }
-  if (toRemove.length) {
-    const { error } = await db.from("team_members").delete().in("email", toRemove);
-    if (error) return console.error("[team] remove failed:", error.message);
-  }
-  if (toAdd.length || toRemove.length) {
-    console.info(`[team] synced: +${toAdd.length} −${toRemove.length} (${desired.length} total)`);
-  }
-  lastSync = performance.now();
+export async function ensureAllSuperadmins() {
+  await Promise.all(superadminEmails().map(ensureSuperadminMember));
 }
