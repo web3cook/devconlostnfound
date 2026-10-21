@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* Palette taken from devcon.org */
+@theme {
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #160b2b;        /* headings */
+  --color-body: #30354b;       /* body text */
+  --color-muted: #6b6f85;
+  --color-night: #1a0f33;      /* top bar / dark surfaces */
+  --color-night-2: #2a1859;
+  --color-brand: #7235ed;      /* primary purple */
+  --color-brand-dark: #5b22d1;
+  --color-brand-soft: #a077f3;
+  --color-lavender: #f3eeff;
+  --color-lavender-2: #e6dbff;
+  --color-line: #e4dcf7;
+  --color-mint: #7de2b8;
+  --color-teal: #5ec8d8;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  color: var(--color-body);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #ffffff 0%, transparent 60%),
+    linear-gradient(180deg, var(--color-lavender) 0%, #ece3ff 55%, var(--color-lavender) 100%);
+  background-attachment: fixed;
+}
+
+h1, h2, h3 {
+  color: var(--color-ink);
+}
+
+@utility container-page {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition
+    disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-white shadow-[0_6px_20px_-6px_rgba(114,53,237,0.6)] hover:bg-brand-dark;
+}
+@utility btn-secondary {
+  @apply btn border border-brand/30 bg-white text-brand hover:border-brand hover:bg-lavender;
+}
+@utility btn-ghost {
+  @apply btn text-body hover:bg-white/70;
+}
+@utility btn-danger {
+  @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50;
+}
+@utility btn-sm {
+  @apply px-3.5 py-1.5 text-xs;
+}
+
+@utility card {
+  @apply rounded-2xl border border-line bg-white/85 shadow-[0_10px_30px_-18px_rgba(42,24,89,0.35)] backdrop-blur;
+}
+
+@utility label {
+  @apply mb-1.5 block text-sm font-semibold text-ink;
+}
+@utility hint {
+  @apply mt-1 text-xs text-muted;
+}
+@utility input {
+  @apply block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/70
+    focus:border-brand focus:ring-4 focus:ring-brand/15 focus:outline-none;
+}
+
+@utility eyebrow {
+  @apply text-xs font-semibold tracking-[0.2em] text-brand uppercase;
+}
