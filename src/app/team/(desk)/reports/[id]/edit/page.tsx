@@ -12,7 +12,7 @@ export default async function EditReportPage({ params }: PageProps<"/team/report
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const supabase = await createClient();
   const { data: report } = await supabase.from("lost_reports").select("*").eq("id", id).maybeSingle<LostReport>();
-  if (!report) notFound();
+  if (!report || report.archived_at) notFound();
 
   return (
     <div className="container-page max-w-3xl py-10">

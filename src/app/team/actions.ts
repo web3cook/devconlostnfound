@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { requireSuperadmin, requireTeam } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EMAIL_RE, isSuperadminEmail } from "@/lib/team";
-import { PHOTO_BUCKET } from "@/lib/photos";
 import { claimSchema, firstError, formToObject, foundItemSchema, lostReportSchema } from "@/lib/validation";
 import type { ActionState } from "@/lib/types";
 
@@ -30,6 +29,8 @@ export async function saveFoundItem(_prev: ActionState, fd: FormData): Promise<A
   const privateRow = {
     found_location: d.found_location,
     finder_name: d.finder_name,
+    finder_phone: d.finder_phone,
+    finder_email: d.finder_email,
     finder_contact: d.finder_contact,
     verification_details: d.verification_details,
     internal_notes: d.internal_notes,
@@ -37,12 +38,9 @@ export async function saveFoundItem(_prev: ActionState, fd: FormData): Promise<A
 
   const supabase = await createClient();
   let itemId = id;
-  let oldPhoto: string | null = null;
 
   if (id) {
     if (!UUID.test(id)) return { error: "Invalid item" };
-    const { data: before } = await supabase.from("found_item_details").select("photo_path").eq("item_id", id).maybeSingle();
-    oldPhoto = before?.photo_path ?? null;
     const { error } = await supabase.from("found_items").update(publicRow).eq("id", id);
     if (error) return { error: `Couldn't save: ${error.message}` };
   } else {
@@ -57,23 +55,41 @@ export async function saveFoundItem(_prev: ActionState, fd: FormData): Promise<A
   ]);
   if (detErr || privErr) return { error: `Item saved, but details failed: ${(detErr ?? privErr)!.message}` };
 
-  if (oldPhoto && oldPhoto !== d.photo_path) await supabase.storage.from(PHOTO_BUCKET).remove([oldPhoto]);
 
   revalidateAll(itemId);
   redirect(`/team/items/${itemId}?saved=1`);
 }
 
-export async function deleteFoundItem(fd: FormData) {
-  await requireTeam();
+// ---------------------------------------------------------------------------
+// Archive (soft delete), superadmin only. Nothing is ever hard-deleted. The
+// database only accepts archive changes from the server's secret key, so
+// these go through the admin client after the superadmin check.
+// ---------------------------------------------------------------------------
+
+async function setArchived(fd: FormData, archived: boolean) {
+  const viewer = await requireSuperadmin();
+  const kind = String(fd.get("kind") ?? "");
   const id = String(fd.get("id") ?? "");
-  if (!UUID.test(id)) return;
-  const supabase = await createClient();
-  const { data: details } = await supabase.from("found_item_details").select("photo_path").eq("item_id", id).maybeSingle();
-  // Details and private rows cascade with the item.
-  await supabase.from("found_items").delete().eq("id", id);
-  if (details?.photo_path) await supabase.storage.from(PHOTO_BUCKET).remove([details.photo_path]);
-  revalidateAll();
-  redirect("/team/items");
+  if (!UUID.test(id) || (kind !== "item" && kind !== "report")) return;
+
+  const actor = viewer.name ? `${viewer.name} (${viewer.email})` : viewer.email;
+  const table = kind === "item" ? "found_items" : "lost_reports";
+  const { error } = await createAdminClient()
+    .from(table)
+    .update(archived ? { archived_at: new Date().toISOString(), archived_by: actor, updated_by: actor } : { archived_at: null, archived_by: null, updated_by: actor })
+    .eq("id", id);
+  if (error) throw new Error(`Couldn't ${archived ? "archive" : "restore"}: ${error.message}`);
+
+  revalidateAll(kind === "item" ? id : undefined);
+  if (archived) redirect(kind === "item" ? "/team/items" : "/team/reports");
+}
+
+export async function archiveEntry(fd: FormData) {
+  await setArchived(fd, true);
+}
+
+export async function restoreEntry(fd: FormData) {
+  await setArchived(fd, false);
 }
 
 export async function claimItem(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -87,7 +103,9 @@ export async function claimItem(_prev: ActionState, fd: FormData): Promise<Actio
   const { error } = await supabase.rpc("claim_item", {
     p_item_id: itemId,
     p_claimant_name: parsed.data.claimant_name,
-    p_claimant_contact: parsed.data.claimant_contact,
+    p_claimant_phone: parsed.data.claimant_phone ?? "",
+    p_claimant_email: parsed.data.claimant_email ?? "",
+    p_claimant_contact: parsed.data.claimant_contact ?? "",
     p_claim_notes: parsed.data.claim_notes ?? null,
     p_lost_report_id: parsed.data.lost_report_id ?? null,
   });
@@ -141,7 +159,7 @@ export async function linkReport(fd: FormData) {
     .update({
       status: "matched",
       matched_item_id: itemId,
-      team_note: note || "We may have found your item. Please come to the Info Desk to confirm it's yours.",
+      team_note: note || null,
     })
     .eq("id", reportId);
   revalidateAll(itemId);

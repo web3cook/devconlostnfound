@@ -112,8 +112,8 @@ export function ItemForm({ item, photoUrl }: { item?: TeamItem; photoUrl?: strin
         <div>
           <h2 className="text-lg font-bold">🔒 Full details (team only)</h2>
           <p className="text-sm text-muted">
-            Use these to check a claimant&apos;s description. The photo, title, colour and description become public only after
-            the item is returned.
+            Use these to check a claimant&apos;s description. None of this is ever shown publicly, even after the item is
+            returned.
           </p>
         </div>
 
@@ -165,8 +165,16 @@ export function ItemForm({ item, photoUrl }: { item?: TeamItem; photoUrl?: strin
             <input id="finder_name" name="finder_name" maxLength={120} defaultValue={priv?.finder_name ?? ""} className="input" placeholder="Name" />
           </div>
           <div>
-            <label className="label" htmlFor="finder_contact">Finder&apos;s contact</label>
-            <input id="finder_contact" name="finder_contact" maxLength={200} defaultValue={priv?.finder_contact ?? ""} className="input" placeholder="@telegram, phone or email" />
+            <label className="label" htmlFor="finder_phone">Finder&apos;s phone</label>
+            <input id="finder_phone" name="finder_phone" type="tel" maxLength={40} defaultValue={priv?.finder_phone ?? ""} className="input" placeholder="+91 …" />
+          </div>
+          <div>
+            <label className="label" htmlFor="finder_email">Finder&apos;s email</label>
+            <input id="finder_email" name="finder_email" type="email" maxLength={200} defaultValue={priv?.finder_email ?? ""} className="input" />
+          </div>
+          <div>
+            <label className="label" htmlFor="finder_contact">Other contact</label>
+            <input id="finder_contact" name="finder_contact" maxLength={200} defaultValue={priv?.finder_contact ?? ""} className="input" placeholder="Telegram, WhatsApp, booth…" />
           </div>
         </div>
         <div>

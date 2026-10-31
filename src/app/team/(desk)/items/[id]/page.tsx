@@ -7,10 +7,12 @@ import { topReportsFor } from "@/lib/match";
 import { formatDateTime, itemRef, reportRef } from "@/lib/format";
 import type { LostReport, TeamItem } from "@/lib/types";
 import { publicLabel } from "@/lib/config";
-import { TEAM_ITEM_SELECT, teamTitle, toMatchable } from "@/lib/team-items";
+import { TEAM_ITEM_SELECT, loadActivity, teamTitle, toMatchable } from "@/lib/team-items";
+import { getViewer } from "@/lib/auth";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { CategoryTag, ItemStatusBadge, ReportStatusBadge } from "@/components/badges";
 import { ItemPhoto } from "@/components/item-photo";
-import { deleteFoundItem, linkReport, unclaimItem, unlinkReport } from "@/app/team/actions";
+import { archiveEntry, linkReport, restoreEntry, unclaimItem, unlinkReport } from "@/app/team/actions";
 import { ClaimForm } from "./claim-form";
 
 export const metadata: Metadata = { title: "Item" };
@@ -34,12 +36,17 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   const supabase = await createClient();
-  const [{ data: item }, { data: linked }, { data: open }] = await Promise.all([
+  const [{ data: item }, { data: linked }, { data: open }, history, viewer] = await Promise.all([
     supabase.from("found_items").select(TEAM_ITEM_SELECT).eq("id", id).maybeSingle<TeamItem>(),
-    supabase.from("lost_reports").select("*").eq("matched_item_id", id).returns<LostReport[]>(),
-    supabase.from("lost_reports").select("*").eq("status", "open").returns<LostReport[]>(),
+    supabase.from("lost_reports").select("*").eq("matched_item_id", id).is("archived_at", null).returns<LostReport[]>(),
+    supabase.from("lost_reports").select("*").eq("status", "open").is("archived_at", null).returns<LostReport[]>(),
+    loadActivity(supabase, { itemId: id }),
+    getViewer(),
   ]);
   if (!item) notFound();
+  // Archived entries are only visible to the superadmin.
+  if (item.archived_at && !viewer?.isSuperadmin) notFound();
+  const archived = Boolean(item.archived_at);
   const info = item.found_item_details;
   const details = item.found_item_private;
   const photos = await signPhotoUrls(supabase, [info?.photo_path]);
@@ -49,6 +56,18 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
   return (
     <div className="container-page py-10">
       <Link href="/team/items" className="text-sm font-semibold text-brand hover:underline">← Inventory</Link>
+      {archived && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-slate-200 px-4 py-3 text-sm">
+          <span>
+            🗄️ Archived {formatDateTime(item.archived_at)} by {item.archived_by ?? "superadmin"}. Hidden from the team and the public.
+          </span>
+          <form action={restoreEntry} className="ml-auto">
+            <input type="hidden" name="kind" value="item" />
+            <input type="hidden" name="id" value={item.id} />
+            <button className="btn-secondary btn-sm">Restore</button>
+          </form>
+        </div>
+      )}
       {saved && <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Saved. Tag the item with <strong className="font-mono">{itemRef(item.ref_no)}</strong>.</p>}
 
       <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_1.2fr]">
@@ -61,8 +80,8 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
             <strong className="text-ink">{publicLabel(item)}</strong>
             <p className="mt-1 text-xs text-muted">
               {item.status === "claimed"
-                ? "Returned, so the photo, title and description are now public. Location and claimant stay private."
-                : "Photo, title, description and location stay hidden until the item is returned."}{" "}
+                ? "Listed publicly as Returned. Everything else stays team-only."
+                : "Photo, title, description and location are team-only."}{" "}
               <Link href={`/items/${item.id}`} className="font-semibold text-brand hover:underline">View public page</Link>
             </p>
           </div>
@@ -74,7 +93,7 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
               <span className="rounded-full bg-night px-3 py-1 font-mono text-sm font-semibold text-white">{itemRef(item.ref_no)}</span>
               <ItemStatusBadge status={item.status} />
               <CategoryTag value={item.category} />
-              <Link href={`/team/items/${item.id}/edit`} className="btn-secondary btn-sm ml-auto">Edit</Link>
+              {!archived && <Link href={`/team/items/${item.id}/edit`} className="btn-secondary btn-sm ml-auto">Edit</Link>}
             </div>
             <h1 className="mt-3 text-3xl font-extrabold">{teamTitle(item)}</h1>
             {info?.description && <p className="mt-2 whitespace-pre-line">{info.description}</p>}
@@ -82,7 +101,8 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
               <Field label="Colour" value={info?.color} />
               <Field label="Found near" value={details?.found_location} />
               <Field label="Found at" value={formatDateTime(item.found_at)} />
-              <Field label="Logged" value={formatDateTime(item.created_at)} />
+              <Field label="Logged" value={`${formatDateTime(item.created_at)}${item.logged_by ? ` by ${item.logged_by}` : ""}`} />
+              {item.updated_by && <Field label="Last edited" value={`${formatDateTime(item.updated_at)} by ${item.updated_by}`} />}
             </dl>
           </div>
 
@@ -90,7 +110,9 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
             <h2 className="font-bold">🔒 Team details</h2>
             <dl className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field label="Handed in by" value={details?.finder_name} />
-              <Field label="Finder contact" value={details?.finder_contact} />
+              <Field label="Finder's phone" value={details?.finder_phone} />
+              <Field label="Finder's email" value={details?.finder_email} />
+              <Field label="Finder's other contact" value={details?.finder_contact} />
               <div className="sm:col-span-2"><Field label="Identifying details (ask claimant)" value={details?.verification_details} /></div>
               <div className="sm:col-span-2"><Field label="Internal notes" value={details?.internal_notes} /></div>
             </dl>
@@ -101,7 +123,9 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
               <h2 className="font-bold">Returned {formatDateTime(item.claimed_at)}</h2>
               <dl className="mt-3 grid gap-4 sm:grid-cols-2">
                 <Field label="Collected by" value={details?.claimant_name} />
-                <Field label="Contact" value={details?.claimant_contact} />
+                <Field label="Phone" value={details?.claimant_phone} />
+                <Field label="Email" value={details?.claimant_email} />
+                <Field label="Other contact" value={details?.claimant_contact} />
                 <div className="sm:col-span-2"><Field label="Verification notes" value={details?.claim_notes} /></div>
                 <Field label="Handed over by" value={details?.claimed_by_team} />
               </dl>
@@ -110,7 +134,7 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
                 <button className="btn-ghost btn-sm text-red-600">Undo hand-over</button>
               </form>
             </section>
-          ) : (
+          ) : archived ? null : (
             <section className="card p-5">
               <h2 className="font-bold">Hand over to owner</h2>
               <p className="mb-4 text-sm text-muted">Ask them to describe the item first and check it against the identifying details.</p>
@@ -118,9 +142,11 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
                 itemId={item.id}
                 reports={pending.map((r) => ({
                   id: r.id,
-                  label: `${reportRef(r.ref_no)} · ${r.contact_name} — ${r.title}`,
+                  label: `${reportRef(r.ref_no)} · ${r.contact_name}: ${r.title}`,
                   name: r.contact_name,
-                  contact: contactOf(r),
+                  phone: r.contact_phone ?? "",
+                  email: r.contact_email ?? "",
+                  other: r.contact_telegram ? `Telegram @${r.contact_telegram}` : "",
                 }))}
               />
             </section>
@@ -151,10 +177,10 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
           </>
         )}
 
-        {item.status === "in_custody" && (
+        {item.status === "in_custody" && !archived && (
           <>
             <h2 className="mt-8 text-xl font-bold">Lost reports that might be this item</h2>
-            <p className="text-sm text-muted">Linking notifies the reporter on their “My reports” page. Contact them too.</p>
+            <p className="text-sm text-muted">Linking records the match. Then contact the attendee and ask them to come to the desk.</p>
             <div className="mt-3 space-y-3">
               {suggestions.length ? (
                 suggestions.map(({ report: r, score }) => (
@@ -174,7 +200,7 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
                     <form action={linkReport} className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <input type="hidden" name="report_id" value={r.id} />
                       <input type="hidden" name="item_id" value={item.id} />
-                      <input name="team_note" className="input sm:flex-1" placeholder="Message to reporter (optional)" maxLength={1000} />
+                      <input name="team_note" className="input sm:flex-1" placeholder="Team note (optional)" maxLength={1000} />
                       <button className="btn-primary btn-sm">Link as match</button>
                     </form>
                   </div>
@@ -189,10 +215,21 @@ export default async function TeamItemPage({ params, searchParams }: PageProps<"
         )}
       </section>
 
-      <form action={deleteFoundItem} className="mt-12 border-t border-line pt-6">
-        <input type="hidden" name="id" value={item.id} />
-        <button className="btn-danger btn-sm">Delete item (duplicates / mistakes only)</button>
-      </form>
+      <section className="mt-12">
+        <h2 className="text-xl font-bold">History</h2>
+        <div className="card mt-3 p-5">
+          <ActivityTimeline entries={history} />
+        </div>
+      </section>
+
+      {viewer?.isSuperadmin && !archived && (
+        <form action={archiveEntry} className="mt-12 border-t border-line pt-6">
+          <input type="hidden" name="kind" value="item" />
+          <input type="hidden" name="id" value={item.id} />
+          <button className="btn-danger btn-sm">Archive item (superadmin)</button>
+          <p className="hint">Hides it from the team and the public. It stays in the database with its history and can be restored.</p>
+        </form>
+      )}
     </div>
   );
 }

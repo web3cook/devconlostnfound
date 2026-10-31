@@ -6,7 +6,7 @@ It's built with Next.js and runs on Vercel, with Supabase for Postgres, Auth (Go
 ## What it does
 
 **Attendees** (no account, no sign-in)
-- Browse everything handed in at the Info Desk. While an item is unclaimed the public sees only a **generic label** ("Water bottle, 1 L", "Backpack"), with no photo, description or location, so the real owner has to describe it
+- Browse everything handed in at the Info Desk. The public only ever sees a **generic label** ("Water bottle, 1 L", "Backpack"), category, date and status, with no photo, description or location, so the real owner has to describe it. Returned items stay listed as **Returned**
 - Each item has a reference number (`F-0042`) to give at the desk when claiming it
 - To report a loss, visit any Info Desk. A team member files it and contacts them if it turns up
 
@@ -15,10 +15,12 @@ It's built with Next.js and runs on Vercel, with Supabase for Postgres, Auth (Go
 - Log a found item from a phone. The photo is taken in the browser, compressed, and uploaded
 - Write the generic public label, plus the full team-only details: title, colour, description, photo, location, who handed it in, **identifying details** to check claims against, internal notes
 - Dashboard of **possible matches** between open lost reports and items in custody; link a report to an item, then contact the attendee
-- **Hand over** an item: record who collected it, their contact and how they proved ownership. It's done in one step and also closes the linked report. A hand-over can be undone
+- **Hand over** an item: record who collected it (phone, email and/or other contact) and how they proved ownership. It's done in one step and also closes the linked report. A hand-over can be undone
+- **Full track record:** nothing can be deleted. Every item and report shows who logged, filed, claimed and last edited it (as "Name (email)"), plus a **History** timeline of every change. The database writes these, so they can't be faked
 
 **Superadmin** (the email in `SUPERADMIN`)
 - Everything the team can do, plus adding and removing team members on **Team desk → Team**. Changes apply immediately
+- **Archive** (soft delete) and **Restore** found items and lost reports. Archived entries are hidden from the team and the public but kept with their history, under the **Archived** filter
 
 **Anyone else who signs in** sees **Authorisation denied**: they're signed out and their Supabase Auth user is deleted.
 Lost reports they filed online before this rule are kept.
@@ -27,10 +29,11 @@ Lost reports they filed online before this rule are kept.
 
 | Data | Public | Team |
 | --- | --- | --- |
-| Generic label, category, date found, status | ✅ | ✅ |
-| Title, description, colour, photo | only once returned | ✅ |
+| Generic label, category, date found, status (not archived) | ✅ | ✅ |
+| Title, description, colour, photo | ❌ | ✅ |
 | Location, finder, claimant, identifying details | ❌ | ✅ |
 | Lost reports (incl. attendee contact info) | ❌ | ✅ |
+| History timeline | ❌ | ✅ (read-only; written by database triggers) |
 | Team roster | ❌ | ✅ (read-only; superadmin edits via the server) |
 
 A team member must be in `team_members` **and** have signed in with Google. Signing in another way

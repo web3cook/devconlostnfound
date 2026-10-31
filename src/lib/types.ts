@@ -1,7 +1,7 @@
 export type ItemStatus = "in_custody" | "claimed";
 export type ReportStatus = "open" | "matched" | "returned" | "closed";
 
-/** Public row. While in custody this is all anyone outside the team can see. */
+/** Public row: all anyone outside the team ever sees (archived rows are hidden from them). */
 export type FoundItem = {
   id: string;
   ref_no: number;
@@ -11,9 +11,15 @@ export type FoundItem = {
   status: ItemStatus;
   claimed_at: string | null;
   created_at: string;
+  /** "Name (email)" stamped by the database. */
+  logged_by: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  archived_at: string | null;
+  archived_by: string | null;
 };
 
-/** Real description. Team always; public only once the item is claimed (RLS). */
+/** Real description. Team only (RLS). */
 export type FoundItemDetails = {
   item_id: string;
   title: string;
@@ -28,19 +34,23 @@ export type TeamItem = FoundItem & {
   found_item_private: FoundItemPrivate | null;
 };
 
-/** A found item with whatever details the viewer is allowed to see. */
-export type FoundItemWithDetails = FoundItem & { found_item_details: FoundItemDetails | null };
-
 export type FoundItemPrivate = {
   item_id: string;
   found_location: string | null;
   finder_name: string | null;
+  finder_phone: string | null;
+  finder_email: string | null;
+  /** Free-text "other contact" (Telegram etc.). */
   finder_contact: string | null;
   verification_details: string | null;
   internal_notes: string | null;
   claimant_name: string | null;
+  claimant_phone: string | null;
+  claimant_email: string | null;
+  /** Free-text "other contact" (Telegram etc.). */
   claimant_contact: string | null;
   claim_notes: string | null;
+  /** "Name (email)" of the team member who handed it over. */
   claimed_by_team: string | null;
 };
 
@@ -49,8 +59,12 @@ export type LostReport = {
   ref_no: number;
   /** Legacy: account that reported it online, before reports moved to the desk. */
   user_id: string | null;
-  /** Team member who filed it (set by the database). */
+  /** "Name (email)" of the team member who filed it (set by the database). */
   filed_by: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  archived_at: string | null;
+  archived_by: string | null;
   title: string;
   description: string;
   category: string;
@@ -68,3 +82,14 @@ export type LostReport = {
 };
 
 export type ActionState = { error?: string; ok?: string } | undefined;
+
+/** One entry in an item's or report's timeline. Written only by database triggers. */
+export type ActivityEntry = {
+  id: number;
+  item_id: string | null;
+  report_id: string | null;
+  action: string;
+  summary: string | null;
+  actor: string | null;
+  created_at: string;
+};

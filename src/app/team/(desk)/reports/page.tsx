@@ -8,7 +8,10 @@ import { publicLabel } from "@/lib/config";
 import { loadTeamItems, teamTitle, toMatchable } from "@/lib/team-items";
 import { CategoryTag, ReportStatusBadge } from "@/components/badges";
 import { ItemFilters } from "@/components/item-filters";
-import { linkReport, saveTeamNote, setReportStatus, unlinkReport } from "@/app/team/actions";
+import { archiveEntry, linkReport, restoreEntry, saveTeamNote, setReportStatus, unlinkReport } from "@/app/team/actions";
+import { loadActivity } from "@/lib/team-items";
+import { getViewer } from "@/lib/auth";
+import { ActivityTimeline } from "@/components/activity-timeline";
 
 export const metadata: Metadata = { title: "Lost reports" };
 
@@ -22,7 +25,9 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
   const q = typeof sp.q === "string" ? sanitizeSearch(sp.q) : "";
   const category = typeof sp.category === "string" ? sp.category : "";
   const saved = typeof sp.saved === "string" ? sp.saved : "";
-  const status = STATUSES.includes(sp.status as ReportStatus) || sp.status === "all" ? String(sp.status) : "open";
+  const viewer = await getViewer();
+  const showArchived = sp.status === "archived" && Boolean(viewer?.isSuperadmin);
+  const status = showArchived ? "archived" : STATUSES.includes(sp.status as ReportStatus) || sp.status === "all" ? String(sp.status) : "open";
 
   const supabase = await createClient();
   let query = supabase
@@ -30,12 +35,14 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
     .select("*, matched_item:found_items(id, ref_no, public_label, category, found_item_details(title))")
     .order("created_at", { ascending: false })
     .limit(500);
-  if (status !== "all") query = query.eq("status", status);
+  query = showArchived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+  if (status !== "all" && !showArchived) query = query.eq("status", status);
   if (category) query = query.eq("category", category);
   if (q) query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,lost_location.ilike.%${q}%,contact_name.ilike.%${q}%`);
 
   const [{ data: reports }, teamItems] = await Promise.all([query.returns<Row[]>(), loadTeamItems(supabase, "in_custody")]);
   const items = teamItems.map((i) => ({ ...toMatchable(i), label: teamTitle(i) }));
+  const history = await loadActivity(supabase, { reportIds: (reports ?? []).map((r) => r.id) });
 
   return (
     <div className="container-page py-10">
@@ -57,6 +64,7 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
           { value: "returned", label: "Returned" },
           { value: "closed", label: "Closed" },
           { value: "all", label: "All" },
+          ...(viewer?.isSuperadmin ? [{ value: "archived", label: "Archived" }] : []),
         ]}
       />
 
@@ -75,11 +83,16 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
                 <span className="font-mono text-xs text-muted">{reportRef(r.ref_no)}</span>
                 <ReportStatusBadge status={r.status} />
                 <CategoryTag value={r.category} />
-                <span className="ml-auto text-xs text-muted">
+                <span className="ml-auto text-right text-xs text-muted">
                   {formatDateTime(r.created_at)}
                   {r.filed_by ? <> · filed by {r.filed_by}</> : <> · reported online</>}
+                  {r.updated_by && (
+                    <span className="block">
+                      last edited {formatDateTime(r.updated_at)} by {r.updated_by}
+                    </span>
+                  )}
                 </span>
-                <Link href={`/team/reports/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
+                {!r.archived_at && <Link href={`/team/reports/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>}
               </div>
               <div className="mt-3 grid gap-5 md:grid-cols-[1.4fr_1fr]">
                 <div>
@@ -140,14 +153,14 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
                         <option key={i.id} value={i.id}>{itemRef(i.ref_no)} · {i.label}</option>
                       ))}
                     </select>
-                    <input name="team_note" className="input sm:flex-1" placeholder="Message to reporter (optional)" maxLength={1000} />
+                    <input name="team_note" className="input sm:flex-1" placeholder="Team note (optional)" maxLength={1000} />
                     <button className="btn-primary btn-sm">Link</button>
                   </form>
                 )}
                 {r.status !== "open" && (
                   <form action={saveTeamNote} className="flex flex-1 flex-col gap-2 sm:flex-row">
                     <input type="hidden" name="report_id" value={r.id} />
-                    <input name="team_note" defaultValue={r.team_note ?? ""} className="input sm:flex-1" placeholder="Message to reporter" maxLength={1000} />
+                    <input name="team_note" defaultValue={r.team_note ?? ""} className="input sm:flex-1" placeholder="Team note" maxLength={1000} />
                     <button className="btn-secondary btn-sm">Save note</button>
                   </form>
                 )}
@@ -158,7 +171,27 @@ export default async function TeamReports({ searchParams }: PageProps<"/team/rep
                     <button className="btn-ghost btn-sm">{r.status === "open" ? "Close report" : "Reopen"}</button>
                   </form>
                 )}
+                {viewer?.isSuperadmin && (
+                  <form action={r.archived_at ? restoreEntry : archiveEntry}>
+                    <input type="hidden" name="kind" value="report" />
+                    <input type="hidden" name="id" value={r.id} />
+                    <button className={r.archived_at ? "btn-secondary btn-sm" : "btn-ghost btn-sm text-red-600"}>
+                      {r.archived_at ? "Restore" : "Archive"}
+                    </button>
+                  </form>
+                )}
               </div>
+              {r.archived_at && (
+                <p className="mt-3 rounded-xl bg-slate-200 px-4 py-2 text-sm">
+                  🗄️ Archived {formatDateTime(r.archived_at)} by {r.archived_by ?? "superadmin"}
+                </p>
+              )}
+              <details className="mt-3 text-sm">
+                <summary className="cursor-pointer font-semibold text-brand">History</summary>
+                <div className="mt-3">
+                  <ActivityTimeline entries={history.filter((e) => e.report_id === r.id)} />
+                </div>
+              </details>
             </article>
           );
         })}

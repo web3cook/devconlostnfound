@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { signPhotoUrls } from "@/lib/photos";
 import { EVENT, INFO_DESK } from "@/lib/config";
-import type { FoundItemWithDetails } from "@/lib/types";
+import type { FoundItem } from "@/lib/types";
 import { ItemCard } from "@/components/item-card";
 
 const STEPS = [
@@ -31,15 +30,14 @@ export default async function Home() {
   const [{ data: recent }, { count: inCustody }, { count: returned }] = await Promise.all([
     supabase
       .from("found_items")
-      .select("*, found_item_details(*)")
-      .eq("status", "in_custody")
+      .select("*")
+      .eq("status", "in_custody").is("archived_at", null)
       .order("found_at", { ascending: false })
       .limit(8)
-      .returns<FoundItemWithDetails[]>(),
-    supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "in_custody"),
-    supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "claimed"),
+      .returns<FoundItem[]>(),
+    supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "in_custody").is("archived_at", null),
+    supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "claimed").is("archived_at", null),
   ]);
-  const photos = await signPhotoUrls(supabase, (recent ?? []).map((i) => i.found_item_details?.photo_path));
 
   return (
     <>
@@ -117,7 +115,7 @@ export default async function Home() {
         {recent?.length ? (
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {recent.map((item) => (
-              <ItemCard key={item.id} item={item} photoUrl={photos[item.found_item_details?.photo_path ?? ""]} href={`/items/${item.id}`} />
+              <ItemCard key={item.id} item={item} href={`/items/${item.id}`} />
             ))}
           </div>
         ) : (

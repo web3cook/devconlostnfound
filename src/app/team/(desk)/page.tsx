@@ -13,9 +13,9 @@ export default async function TeamDashboard() {
   const supabase = await createClient();
   const [items, { data: reports }, { count: claimed }, { count: matched }] = await Promise.all([
     loadTeamItems(supabase, "in_custody"),
-    supabase.from("lost_reports").select("*").eq("status", "open").order("created_at", { ascending: false }).returns<LostReport[]>(),
-    supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "claimed"),
-    supabase.from("lost_reports").select("*", { count: "exact", head: true }).eq("status", "matched"),
+    supabase.from("lost_reports").select("*").eq("status", "open").is("archived_at", null).order("created_at", { ascending: false }).returns<LostReport[]>(),
+    supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "claimed").is("archived_at", null),
+    supabase.from("lost_reports").select("*", { count: "exact", head: true }).eq("status", "matched").is("archived_at", null),
   ]);
 
   const suggestions = (reports ?? [])

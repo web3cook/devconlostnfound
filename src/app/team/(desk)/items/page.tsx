@@ -5,6 +5,7 @@ import { signPhotoUrls } from "@/lib/photos";
 import { formatDateTime, itemRef } from "@/lib/format";
 import { publicLabel } from "@/lib/config";
 import { loadTeamItems, teamTitle } from "@/lib/team-items";
+import { getViewer } from "@/lib/auth";
 import { CategoryTag, ItemStatusBadge } from "@/components/badges";
 import { ItemFilters } from "@/components/item-filters";
 import { ItemPhoto } from "@/components/item-photo";
@@ -15,17 +16,21 @@ export default async function TeamItems({ searchParams }: PageProps<"/team/items
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase().slice(0, 80) : "";
   const category = typeof sp.category === "string" ? sp.category : "";
-  const status = sp.status === "claimed" || sp.status === "all" ? sp.status : "in_custody";
+  const viewer = await getViewer();
+  const showArchived = sp.status === "archived" && Boolean(viewer?.isSuperadmin);
+  const status = showArchived ? "archived" : sp.status === "claimed" || sp.status === "all" ? sp.status : "in_custody";
 
   const supabase = await createClient();
-  const all = await loadTeamItems(supabase, status === "all" ? undefined : status);
+  const all = showArchived
+    ? await loadTeamItems(supabase, undefined, { archived: true })
+    : await loadTeamItems(supabase, status === "all" ? undefined : (status as "in_custody" | "claimed"));
   // Search spans the public label and the team-only fields, so filter here.
   const items = all.filter((i) => {
     if (category && i.category !== category) return false;
     if (!q) return true;
     const d = i.found_item_details;
     const p = i.found_item_private;
-    return [i.public_label, d?.title, d?.description, d?.color, p?.found_location, p?.finder_name, p?.claimant_name, String(i.ref_no)]
+    return [i.public_label, d?.title, d?.description, d?.color, p?.found_location, p?.finder_name, p?.finder_phone, p?.finder_email, p?.claimant_name, p?.claimant_phone, p?.claimant_email, i.logged_by, String(i.ref_no)]
       .some((v) => v?.toLowerCase().includes(q));
   });
   const photos = await signPhotoUrls(supabase, items.map((i) => i.found_item_details?.photo_path));
@@ -36,7 +41,19 @@ export default async function TeamItems({ searchParams }: PageProps<"/team/items
         <h1 className="text-3xl font-extrabold">Inventory</h1>
         <Link href="/team/items/new" className="btn-primary">📷 Log found item</Link>
       </div>
-      <ItemFilters action="/team/items" q={q} category={category} status={status} placeholder="Search anything: title, colour, location, finder…" />
+      <ItemFilters
+        action="/team/items"
+        q={q}
+        category={category}
+        status={status}
+        placeholder="Search anything: title, colour, location, finder…"
+        statusOptions={[
+          { value: "in_custody", label: "At Info Desk" },
+          { value: "claimed", label: "Returned" },
+          { value: "all", label: "All" },
+          ...(viewer?.isSuperadmin ? [{ value: "archived", label: "Archived" }] : []),
+        ]}
+      />
 
       <div className="card mt-6 divide-y divide-line overflow-hidden">
         {items.map((i) => (

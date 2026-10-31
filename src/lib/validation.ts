@@ -47,17 +47,25 @@ export const foundItemSchema = z.object({
   photo_path: optional(300),
   found_location: optional(200),
   finder_name: optional(120),
+  finder_phone: optional(40),
+  finder_email: optional(200).refine((v) => v === null || z.email().safeParse(v).success, "Finder email looks invalid"),
   finder_contact: optional(200),
   verification_details: optional(2000),
   internal_notes: optional(2000),
 });
 
-export const claimSchema = z.object({
-  claimant_name: z.string().trim().min(1, "Name of the person collecting is required").max(120),
-  claimant_contact: z.string().trim().min(1, "Contact (Telegram, phone or email) is required").max(200),
-  claim_notes: optional(2000),
-  lost_report_id: z.uuid().optional().or(z.literal("").transform(() => undefined)),
-});
+export const claimSchema = z
+  .object({
+    claimant_name: z.string().trim().min(1, "Name of the person collecting is required").max(120),
+    claimant_phone: optional(40),
+    claimant_email: optional(200).refine((v) => v === null || z.email().safeParse(v).success, "Email looks invalid"),
+    claimant_contact: optional(200),
+    claim_notes: optional(2000),
+    lost_report_id: z.uuid().optional().or(z.literal("").transform(() => undefined)),
+  })
+  .refine((d) => d.claimant_phone || d.claimant_email || d.claimant_contact, {
+    message: "Add at least one way to contact them: phone, email or other contact",
+  });
 
 export function formToObject(fd: FormData) {
   const out: Record<string, string> = {};

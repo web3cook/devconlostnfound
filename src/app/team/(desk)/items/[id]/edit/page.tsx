@@ -6,6 +6,7 @@ import { itemRef } from "@/lib/format";
 import { TEAM_ITEM_SELECT } from "@/lib/team-items";
 import type { TeamItem } from "@/lib/types";
 import { ItemForm } from "@/components/item-form";
+import { getViewer } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Edit item" };
 
@@ -15,6 +16,7 @@ export default async function EditItemPage({ params }: PageProps<"/team/items/[i
   const supabase = await createClient();
   const { data: item } = await supabase.from("found_items").select(TEAM_ITEM_SELECT).eq("id", id).maybeSingle<TeamItem>();
   if (!item) notFound();
+  if (item.archived_at && !(await getViewer())?.isSuperadmin) notFound();
   const path = item.found_item_details?.photo_path;
   const photos = await signPhotoUrls(supabase, [path]);
 
