@@ -70,10 +70,11 @@ async function setArchived(fd: FormData, archived: boolean) {
   const viewer = await requireSuperadmin();
   const kind = String(fd.get("kind") ?? "");
   const id = String(fd.get("id") ?? "");
-  if (!UUID.test(id) || (kind !== "item" && kind !== "report")) return;
+  const TABLES = { item: "found_items", report: "lost_reports", deposit: "cloak_deposits" } as const;
+  if (!UUID.test(id) || !(kind in TABLES)) return;
 
   const actor = viewer.name ? `${viewer.name} (${viewer.email})` : viewer.email;
-  const table = kind === "item" ? "found_items" : "lost_reports";
+  const table = TABLES[kind as keyof typeof TABLES];
   const { error } = await createAdminClient()
     .from(table)
     .update(archived ? { archived_at: new Date().toISOString(), archived_by: actor, updated_by: actor } : { archived_at: null, archived_by: null, updated_by: actor })
@@ -81,7 +82,7 @@ async function setArchived(fd: FormData, archived: boolean) {
   if (error) throw new Error(`Couldn't ${archived ? "archive" : "restore"}: ${error.message}`);
 
   revalidateAll(kind === "item" ? id : undefined);
-  if (archived) redirect(kind === "item" ? "/team/items" : "/team/reports");
+  if (archived) redirect(kind === "item" ? "/team/items" : kind === "report" ? "/team/reports" : "/team/cloakroom");
 }
 
 export async function archiveEntry(fd: FormData) {

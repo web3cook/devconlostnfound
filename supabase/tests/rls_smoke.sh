@@ -80,6 +80,29 @@ check "team cannot remove members" "permission denied" "$(P -c "begin; $T delete
 check "user sees no roster" "0" "$(P -c "begin; $U select count(*) from team_members; commit;")"
 check "user cannot upload photos" "row-level security" "$(P -c "begin; $U insert into storage.objects(bucket_id,name) values ('item-photos','evil.jpg'); commit;")"
 
+# ---- Cloakroom
+DEP="(select id from cloak_deposits where ref_no=1)"
+NEWDEP="insert into cloak_deposits(token_no,bag_count,depositor_name,depositor_phone,bag_photo_paths,token_photo_path)"
+check "team checks in bags; token normalised, stamped" "1|A12|stored|Tara Team (team@x.org)" "$(P -c "begin; $T $NEWDEP values (' a12 ',2,'Priya','+911',array['cloakroom/b1.jpg'],'cloakroom/t1.jpg') returning ref_no, token_no, status, checked_in_by; commit;")"
+check "anon cannot see deposits" "permission denied" "$(P -c "begin; set local role anon; select count(*) from cloak_deposits; commit;")"
+check "non-team user cannot see deposits" "0" "$(P -c "begin; $U select count(*) from cloak_deposits; commit;")"
+check "non-team user cannot check in" "row-level security" "$(P -c "begin; $U $NEWDEP values ('Z1',1,'x','1',array['p'],'t'); commit;")"
+check "check-in needs a contact" "cloak_depositor_contact" "$(P -c "begin; $T insert into cloak_deposits(token_no,bag_count,depositor_name,bag_photo_paths,token_photo_path) values ('B1',1,'x',array['p'],'t'); commit;")"
+check "check-in needs a bag photo" "bag_photo_paths" "$(P -c "begin; $T $NEWDEP values ('B2',1,'x','1',array[]::text[],'t'); commit;")"
+check "token can't be on two stored deposits" "cloak_deposits_active_token" "$(P -c "begin; $T $NEWDEP values ('A12',1,'Other','1',array['p'],'t'); commit;")"
+check "pickup needs the matching token" "does not match" "$(P -c "begin; $T select collect_deposit($DEP,'A99','Priya','+911','','',''); commit;")"
+check "pickup needs a collector contact" "at least one way" "$(P -c "begin; $T select collect_deposit($DEP,'a12','Priya','','','',''); commit;")"
+check "non-team user cannot hand back bags" "Only the Info Desk team" "$(P -c "begin; $U select collect_deposit($DEP,'A12','x','1','','',''); commit;")"
+check "pickup records collector and volunteer" "collected|Ravi|@ravi|Tara Team (team@x.org)" "$(P -c "begin; $T select collect_deposit($DEP,'a12','Ravi','','@ravi','','friend of Priya'); select status, collector_name, collector_telegram, collected_by_team from cloak_deposits where ref_no=1; commit;")"
+check "collected deposit can't be collected again" "not in the cloakroom" "$(P -c "begin; $T select collect_deposit($DEP,'A12','Ravi','1','','',''); commit;")"
+check "token reusable once collected" "A12|stored" "$(P -c "begin; $T $NEWDEP values ('A12',1,'Next person','+912',array['p'],'t') returning token_no, status; commit;")"
+check "undo pickup blocked while token is reused" "cloak_deposits_active_token" "$(P -c "begin; $T select uncollect_deposit($DEP); commit;")"
+check "team cannot delete deposits" "permission denied" "$(P -c "begin; $T delete from cloak_deposits; commit;")"
+check "team cannot archive deposits" "Only the superadmin" "$(P -c "begin; $T update cloak_deposits set archived_at=now(); commit;")"
+check "deposit history" "checked in|Tara Team (team@x.org)
+collected|Tara Team (team@x.org)" "$(P -c "begin; $T select action || '|' || actor from activity_log where deposit_id=$DEP order by id; commit;")"
+check "pickup history names the collector" "Collected by Ravi" "$(P -c "select summary from activity_log where action='collected';")"
+
 P -c "insert into lost_reports(user_id,title,description,category,contact_name) values ('33333333-3333-3333-3333-333333333333','old online report','x','other','Uma');" >/dev/null
 check "deleting reporter account keeps their report" "old online report|" "$(P -c "delete from auth.users where id='33333333-3333-3333-3333-333333333333'; select title, coalesce(user_id::text,'') from lost_reports where title='old online report';")"
 

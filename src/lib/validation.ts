@@ -67,6 +67,53 @@ export const claimSchema = z
     message: "Add at least one way to contact them: phone, email or other contact",
   });
 
+const email = (max: number, msg: string) =>
+  optional(max).refine((v) => v === null || z.email().safeParse(v).success, msg);
+const telegram = optional(100).transform((v) => (v ? v.replace(/^@+/, "") : v));
+
+const photoPaths = z
+  .string()
+  .optional()
+  .transform((v, ctx) => {
+    try {
+      const arr = JSON.parse(v || "[]");
+      if (Array.isArray(arr) && arr.every((p) => typeof p === "string" && p.length <= 300)) return arr as string[];
+    } catch {}
+    ctx.addIssue({ code: "custom", message: "Invalid photos" });
+    return z.NEVER;
+  });
+
+export const depositSchema = z
+  .object({
+    token_no: z.string().trim().min(1, "Enter the token number").max(20).transform((v) => v.toUpperCase()),
+    bag_count: z.coerce.number().int().min(1, "At least one bag").max(50),
+    bag_description: optional(1000),
+    deposited_at: isoOrNull,
+    depositor_name: z.string().trim().min(1, "Depositor's name is required").max(120),
+    depositor_phone: optional(40),
+    depositor_telegram: telegram,
+    depositor_email: email(200, "Depositor email looks invalid"),
+    notes: optional(2000),
+    bag_photo_paths: photoPaths.refine((a) => a.length >= 1, "Take at least one photo of the bags").refine((a) => a.length <= 20, "Up to 20 bag photos"),
+    token_photo_path: z.string().trim().min(1, "Take a photo of the token").max(300),
+  })
+  .refine((d) => d.depositor_phone || d.depositor_telegram || d.depositor_email, {
+    message: "Add at least one way to reach the depositor: phone, Telegram or email",
+  });
+
+export const collectSchema = z
+  .object({
+    token_no: z.string().trim().min(1, "Enter the token number the person handed back").max(20),
+    collector_name: z.string().trim().min(1, "Name of the person collecting is required").max(120),
+    collector_phone: optional(40),
+    collector_telegram: telegram,
+    collector_email: email(200, "Email looks invalid"),
+    collection_notes: optional(2000),
+  })
+  .refine((d) => d.collector_phone || d.collector_telegram || d.collector_email, {
+    message: "Add at least one way to contact them: phone, Telegram or email",
+  });
+
 export function formToObject(fd: FormData) {
   const out: Record<string, string> = {};
   for (const [k, v] of fd.entries()) if (typeof v === "string") out[k] = v;

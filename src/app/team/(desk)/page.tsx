@@ -11,12 +11,14 @@ export const metadata: Metadata = { title: "Team desk" };
 
 export default async function TeamDashboard() {
   const supabase = await createClient();
-  const [items, { data: reports }, { count: claimed }, { count: matched }] = await Promise.all([
+  const [items, { data: reports }, { count: claimed }, { count: matched }, { data: cloak }] = await Promise.all([
     loadTeamItems(supabase, "in_custody"),
     supabase.from("lost_reports").select("*").eq("status", "open").is("archived_at", null).order("created_at", { ascending: false }).returns<LostReport[]>(),
     supabase.from("found_items").select("*", { count: "exact", head: true }).eq("status", "claimed").is("archived_at", null),
     supabase.from("lost_reports").select("*", { count: "exact", head: true }).eq("status", "matched").is("archived_at", null),
+    supabase.from("cloak_deposits").select("bag_count").eq("status", "stored").is("archived_at", null),
   ]);
+  const bagsInCloakroom = (cloak ?? []).reduce((n, r) => n + (r.bag_count as number), 0);
 
   const suggestions = (reports ?? [])
     .map((r) => ({ report: r, matches: topMatches(r, items.map(toMatchable), 2) }))
@@ -28,6 +30,7 @@ export default async function TeamDashboard() {
     { label: "Open lost reports", value: reports?.length ?? 0, href: "/team/reports" },
     { label: "Awaiting pickup (matched)", value: matched ?? 0, href: "/team/reports?status=matched" },
     { label: "Returned", value: claimed ?? 0, href: "/team/items?status=claimed" },
+    { label: "Bags in cloakroom", value: bagsInCloakroom, href: "/team/cloakroom" },
   ];
 
   return (
@@ -38,12 +41,13 @@ export default async function TeamDashboard() {
           <h1 className="mt-1 text-3xl font-extrabold">Dashboard</h1>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/team/cloakroom/new" className="btn-secondary">🧳 Check in bags</Link>
           <Link href="/team/reports/new" className="btn-secondary">+ File lost report</Link>
           <Link href="/team/items/new" className="btn-primary">📷 Log found item</Link>
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         {stats.map((s) => (
           <Link key={s.label} href={s.href} className="card p-5 hover:border-brand/40">
             <p className="text-3xl font-extrabold text-ink">{s.value}</p>

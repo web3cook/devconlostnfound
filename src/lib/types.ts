@@ -88,8 +88,43 @@ export type ActivityEntry = {
   id: number;
   item_id: string | null;
   report_id: string | null;
+  deposit_id: string | null;
   action: string;
   summary: string | null;
   actor: string | null;
+  created_at: string;
+};
+
+export type DepositStatus = "stored" | "collected";
+
+/** A cloakroom deposit: one person, one physical token, one or more bags. Team-only. */
+export type CloakDeposit = {
+  id: string;
+  /** Permanent number, shown as C-0001. Physical tokens are reused; this isn't. */
+  ref_no: number;
+  token_no: string;
+  bag_count: number;
+  bag_description: string | null;
+  deposited_at: string;
+  depositor_name: string;
+  depositor_phone: string | null;
+  depositor_telegram: string | null;
+  depositor_email: string | null;
+  notes: string | null;
+  bag_photo_paths: string[];
+  token_photo_path: string;
+  status: DepositStatus;
+  collected_at: string | null;
+  collector_name: string | null;
+  collector_phone: string | null;
+  collector_telegram: string | null;
+  collector_email: string | null;
+  collection_notes: string | null;
+  checked_in_by: string | null;
+  collected_by_team: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
 };

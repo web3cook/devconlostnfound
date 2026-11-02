@@ -16,6 +16,9 @@ const ICON: Record<string, string> = {
   "note updated": "💬",
   archived: "🗄️",
   restored: "♻️",
+  "checked in": "🧳",
+  collected: "✅",
+  "collection undone": "↩️",
 };
 
 /** Read-only history. Entries are written by database triggers, never by the app. */

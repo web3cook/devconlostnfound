@@ -37,9 +37,14 @@ export async function loadTeamItems(
 }
 
 /** Timeline for an item or a report, oldest first. */
-export async function loadActivity(supabase: SupabaseClient, by: { itemId: string } | { reportIds: string[] }) {
+export async function loadActivity(
+  supabase: SupabaseClient,
+  by: { itemId: string } | { reportIds: string[] } | { depositId: string },
+) {
   let q = supabase.from("activity_log").select("*").order("created_at").order("id");
-  q = "itemId" in by ? q.eq("item_id", by.itemId) : q.in("report_id", by.reportIds.length ? by.reportIds : ["00000000-0000-0000-0000-000000000000"]);
+  if ("itemId" in by) q = q.eq("item_id", by.itemId);
+  else if ("depositId" in by) q = q.eq("deposit_id", by.depositId);
+  else q = q.in("report_id", by.reportIds.length ? by.reportIds : ["00000000-0000-0000-0000-000000000000"]);
   const { data } = await q.returns<ActivityEntry[]>();
   return data ?? [];
 }

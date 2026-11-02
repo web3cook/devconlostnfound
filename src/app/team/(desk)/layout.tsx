@@ -9,6 +9,7 @@ const NAV = [
   { href: "/team/items", label: "Inventory" },
   { href: "/team/reports/new", label: "+ File lost report" },
   { href: "/team/reports", label: "Lost reports" },
+  { href: "/team/cloakroom", label: "🧳 Cloakroom" },
   { href: "/team/members", label: "Team" },
 ];
 

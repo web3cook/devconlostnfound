@@ -2,6 +2,7 @@ import { EVENT } from "@/lib/config";
 
 export const itemRef = (n: number) => `F-${String(n).padStart(4, "0")}`;
 export const reportRef = (n: number) => `L-${String(n).padStart(4, "0")}`;
+export const depositRef = (n: number) => `C-${String(n).padStart(4, "0")}`;
 
 const dateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: EVENT.timeZone,

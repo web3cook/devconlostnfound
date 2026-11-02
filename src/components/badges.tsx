@@ -1,4 +1,4 @@
-import type { ItemStatus, ReportStatus } from "@/lib/types";
+import type { DepositStatus, ItemStatus, ReportStatus } from "@/lib/types";
 import { categoryMeta } from "@/lib/config";
 
 const ITEM: Record<ItemStatus, { label: string; cls: string }> = {
@@ -21,6 +21,12 @@ function Pill({ label, cls }: { label: string; cls: string }) {
   );
 }
 
+const DEPOSIT: Record<DepositStatus, { label: string; cls: string }> = {
+  stored: { label: "In cloakroom", cls: "bg-sky-50 text-sky-700 ring-sky-200" },
+  collected: { label: "Collected", cls: "bg-slate-100 text-slate-600 ring-slate-200" },
+};
+
+export const DepositStatusBadge = ({ status }: { status: DepositStatus }) => <Pill {...DEPOSIT[status]} />;
 export const ItemStatusBadge = ({ status }: { status: ItemStatus }) => <Pill {...ITEM[status]} />;
 export const ReportStatusBadge = ({ status }: { status: ReportStatus }) => <Pill {...REPORT[status]} />;
 
