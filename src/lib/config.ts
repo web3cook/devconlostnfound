@@ -1,4 +1,16 @@
-// Event-specific settings. Update these for each Devcon.
+// Event and brand settings. Fork this project? Start here, then see "Customizing" in the README.
+
+/** Names shown in the logo, page titles and footer. */
+export const BRAND = {
+  /** Organisation / event brand, e.g. "Devcon". */
+  name: "Devcon",
+  /** Wordmark in the header logo (often the brand name in capitals). */
+  logoText: "DEVCON",
+  /** What this site is. Shown under the logo and in page titles. */
+  product: "Lost & Found",
+  /** What attendees bring to prove who they are at hand-over. */
+  idHint: "your Devcon badge or ID",
+} as const;
 
 export const EVENT = {
   name: "Devcon 8",

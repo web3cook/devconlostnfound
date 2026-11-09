@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, itemRef } from "@/lib/format";
-import { INFO_DESK, publicLabel } from "@/lib/config";
+import { BRAND, INFO_DESK, publicLabel } from "@/lib/config";
 import { getViewer } from "@/lib/auth";
 import type { FoundItem } from "@/lib/types";
 import { CategoryTag, ItemStatusBadge } from "@/components/badges";
@@ -81,7 +81,7 @@ export default async function ItemPage({ params }: PageProps<"/items/[id]">) {
                 </li>
                 <li>Describe it: colour, brand, stickers, marks, what&apos;s inside, where you lost it.</li>
               </ol>
-              <p className="mt-3 text-xs text-muted">Bring your Devcon badge or ID. Items are only handed over in person.</p>
+              <p className="mt-3 text-xs text-muted">Bring {BRAND.idHint}. Items are only handed over in person.</p>
             </div>
           )}
 

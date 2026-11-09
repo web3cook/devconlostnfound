@@ -1,4 +1,4 @@
-import { EVENT, INFO_DESK } from "@/lib/config";
+import { BRAND, EVENT, INFO_DESK } from "@/lib/config";
 
 export function Footer() {
   const contacts = INFO_DESK.contacts.filter((c) => c.telegram);
@@ -6,7 +6,9 @@ export function Footer() {
     <footer className="mt-20 bg-night text-white/70">
       <div className="container-page flex flex-col gap-4 py-10 text-sm sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="font-semibold text-white">Devcon Lost &amp; Found</p>
+          <p className="font-semibold text-white">
+            {BRAND.name} {BRAND.product}
+          </p>
           <p className="mt-1">
             {EVENT.name} · {EVENT.city} · {EVENT.dates}
           </p>

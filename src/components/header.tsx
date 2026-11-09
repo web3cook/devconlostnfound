@@ -14,7 +14,7 @@ function TopBar() {
           <span className="truncate font-medium">Lost something? Come to the {INFO_DESK.location}</span>
         </p>
         <a href={EVENT.mainSite} className="shrink-0 font-semibold text-brand-soft hover:text-white">
-          devcon.org →
+          {new URL(EVENT.mainSite).hostname.replace(/^www\./, "")} →
         </a>
       </div>
     </div>

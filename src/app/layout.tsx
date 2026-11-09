@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Poppins } from "next/font/google";
 import { Header, HeaderFallback } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { BRAND } from "@/lib/config";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -12,9 +13,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Lost & Found · Devcon", template: "%s · Devcon Lost & Found" },
-  description:
-    "Lost something at Devcon? Browse items handed in at the Info Desk or report what you've lost.",
+  title: { default: `${BRAND.product} · ${BRAND.name}`, template: `%s · ${BRAND.name} ${BRAND.product}` },
+  description: `Lost something at ${BRAND.name}? Browse items handed in at the Info Desk, or visit the desk to report a loss.`,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Palette taken from devcon.org */
+/* Brand palette (taken from devcon.org). Change these tokens to restyle the whole site. */
 @theme {
   --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 
